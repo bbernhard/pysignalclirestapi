@@ -38,7 +38,7 @@ class SignalCliRestApi(object):
 
         if filename is not None:
             with open(filename, "rb") as ofile:
-                data["base64_attachment"] = base64.b64encode(ofile.read())
+                data["base64_attachment"] = str(base64.b64encode(ofile.read()), "utf-8")
         resp = requests.post(url, json=data)
         if resp.status_code != 201:
             json_resp = resp.json()
