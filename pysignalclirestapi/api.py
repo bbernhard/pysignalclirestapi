@@ -17,25 +17,44 @@ class SignalCliRestApi(object):
         self._base_url = base_url
         self._number = number
 
-    def supported_api_versions(self):
+    def api_info(self):
         try:
             resp = requests.get(self._base_url + "/v1/about")
             if resp.status_code == 404:
-                return ["v1"]
-            return json.loads(resp.content)["versions"]
+                return ["v1", 1]
+            data = json.loads(resp.content)
+            api_versions = data["versions"]
+            build_nr = 1
+            try:
+                build_nr = data["build"]
+            except KeyError:
+                pass
+
+            return api_versions, build_nr
+
         except Exception as exc:
             raise SignalCliRestApiError("Couldn't determine REST API version") from exc
 
-    def send_message(self, message, recipients, filenames=None):
+
+    def send_message(self, message, recipients=[], group_id=None, filenames=None):
         """Send a message to one (or more) recipients.
          
-        Additionally a file can be attached.
+        Additionally files can be attached.
         """
+
+        if group_id is None and len(recipients) == 0:
+            raise SignalCliRestApiError("Can't send message: please provide either one (or more) recipients or alternatively a group id!")
+
+        if group_id is not None and len(recipients) > 0:
+            raise SignalCliRestApiError("Can't send message: please provide either one (or more) recipients or alternatively a group id - but not both!")
         
-        api_versions = self.supported_api_versions()
+        api_versions, build_nr = self.api_info()
         if filenames is not None and len(filenames) > 1:
             if "v2" not in api_versions: # multiple attachments only allowed when api version >= v2
                 raise SignalCliRestApiError("This signal-cli-rest-api version is not capable of sending multiple attachments. Please upgrade your signal-cli-rest-api docker container!")
+
+        if build_nr <= 1 and group_id is not None:
+            raise SignalCliRestApiError("This signal-cli-rest-api version is not capable of sending messages to a group. Please upgrade your signal-cli-rest-api docker container!") 
         
         
         url = self._base_url + "/v2/send"
@@ -44,9 +63,14 @@ class SignalCliRestApi(object):
 
         data = {
             "message": message,
-            "number": self._number,
-            "recipients": recipients,
-        } 
+            "number": self._number, 
+        }
+
+        if len(recipients) > 0:
+            data["recipients"] = recipients
+
+        if group_id is not None:
+            data["group_id"] = group_id
 
         try:
             if "v2" in api_versions:
