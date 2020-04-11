@@ -36,24 +36,21 @@ class SignalCliRestApi(object):
             raise SignalCliRestApiError("Couldn't determine REST API version") from exc
 
 
-    def send_message(self, message, recipients=[], group_id=None, filenames=None):
+    def send_message(self, message, recipients, is_group=False, filenames=None):
         """Send a message to one (or more) recipients.
          
         Additionally files can be attached.
         """
 
-        if group_id is None and len(recipients) == 0:
-            raise SignalCliRestApiError("Can't send message: please provide either one (or more) recipients or alternatively a group id!")
-
-        if group_id is not None and len(recipients) > 0:
-            raise SignalCliRestApiError("Can't send message: please provide either one (or more) recipients or alternatively a group id - but not both!")
+        if is_group and len(recipients) > 1:
+            raise SignalCliRestApiError("Sending a message to multiple groups is not (yet) supported!")
         
         api_versions, build_nr = self.api_info()
         if filenames is not None and len(filenames) > 1:
             if "v2" not in api_versions: # multiple attachments only allowed when api version >= v2
                 raise SignalCliRestApiError("This signal-cli-rest-api version is not capable of sending multiple attachments. Please upgrade your signal-cli-rest-api docker container!")
 
-        if build_nr <= 1 and group_id is not None:
+        if build_nr <= 1 and is_group:
             raise SignalCliRestApiError("This signal-cli-rest-api version is not capable of sending messages to a group. Please upgrade your signal-cli-rest-api docker container!") 
         
         
@@ -66,11 +63,8 @@ class SignalCliRestApi(object):
             "number": self._number, 
         }
 
-        if len(recipients) > 0:
-            data["recipients"] = recipients
-
-        if group_id is not None:
-            data["group_id"] = group_id
+        data["recipients"] = recipients
+        data["is_group"] = is_group
 
         try:
             if "v2" in api_versions:
