@@ -35,6 +35,38 @@ class SignalCliRestApi(object):
         except Exception as exc:
             raise SignalCliRestApiError("Couldn't determine REST API version") from exc
 
+    def create_group(self, name, members):
+        try:
+
+            url = self._base_url + "/v1/groups/" + self._number 
+            data = {
+                "members": members,
+                "name": name
+            }
+            resp = requests.post(url, json=data)
+            if resp.status_code != 201 and resp.status_code != 200:
+                json_resp = resp.json()
+                if "error" in json_resp:
+                    raise SignalCliRestApiError(json_resp["error"])
+                raise SignalCliRestApiError("Unknown error while creating Signal Messenger group")
+        except Exception as exc:
+            if exc.__class__ == SignalCliRestApiError:
+                raise exc
+            raise SignalCliRestApiError("Couldn't create Signal Messenger group: ") from exc
+
+    def list_groups(self):
+        try:
+            url = self._base_url + "/v1/groups/" + self._number 
+            resp = requests.get(url)
+            if resp.status_code != 200:
+                json_resp = resp.json()
+                if "error" in json_resp:
+                    raise SignalCliRestApiError(json_resp["error"])
+                raise SignalCliRestApiError("Unknown error while listing Signal Messenger groups")
+        except Exception as exc:
+            if exc.__class__ == SignalCliRestApiError:
+                raise exc
+            raise SignalCliRestApiError("Couldn't list Signal Messenger groups: ") from exc
 
     def send_message(self, message, recipients, filenames=None):
         """Send a message to one (or more) recipients.
