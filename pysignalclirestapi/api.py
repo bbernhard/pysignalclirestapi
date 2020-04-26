@@ -36,22 +36,16 @@ class SignalCliRestApi(object):
             raise SignalCliRestApiError("Couldn't determine REST API version") from exc
 
 
-    def send_message(self, message, recipients, is_group=False, filenames=None):
+    def send_message(self, message, recipients, filenames=None):
         """Send a message to one (or more) recipients.
          
         Additionally files can be attached.
         """
-
-        if is_group and len(recipients) > 1:
-            raise SignalCliRestApiError("Sending a message to multiple groups is not (yet) supported!")
         
         api_versions, build_nr = self.api_info()
         if filenames is not None and len(filenames) > 1:
             if "v2" not in api_versions: # multiple attachments only allowed when api version >= v2
                 raise SignalCliRestApiError("This signal-cli-rest-api version is not capable of sending multiple attachments. Please upgrade your signal-cli-rest-api docker container!")
-
-        if build_nr <= 1 and is_group:
-            raise SignalCliRestApiError("This signal-cli-rest-api version is not capable of sending messages to a group. Please upgrade your signal-cli-rest-api docker container!") 
         
         
         url = self._base_url + "/v2/send"
@@ -64,7 +58,6 @@ class SignalCliRestApi(object):
         }
 
         data["recipients"] = recipients
-        data["is_group"] = is_group
 
         try:
             if "v2" in api_versions:
@@ -84,6 +77,8 @@ class SignalCliRestApi(object):
                 json_resp = resp.json()
                 if "error" in json_resp:
                     raise SignalCliRestApiError(json_resp["error"])
-                raise SignalCliRestApiError("unknown error while sending signal message")
+                raise SignalCliRestApiError("Unknown error while sending signal message")
         except Exception as exc:
+            if exc.__class__ == SignalCliRestApiError:
+                raise exc
             raise SignalCliRestApiError("Couldn't send signal message") from exc
