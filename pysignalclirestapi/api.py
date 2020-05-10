@@ -49,6 +49,7 @@ class SignalCliRestApi(object):
                 if "error" in json_resp:
                     raise SignalCliRestApiError(json_resp["error"])
                 raise SignalCliRestApiError("Unknown error while creating Signal Messenger group")
+            return resp.json()["id"]
         except Exception as exc:
             if exc.__class__ == SignalCliRestApiError:
                 raise exc
