@@ -2,6 +2,7 @@
 
 import base64
 import json
+from future.utils import raise_from
 import requests
 
 class SignalCliRestApiError(Exception):
@@ -33,7 +34,7 @@ class SignalCliRestApi(object):
             return api_versions, build_nr
 
         except Exception as exc:
-            raise SignalCliRestApiError("Couldn't determine REST API version") from exc
+            raise_from(SignalCliRestApiError("Couldn't determine REST API version"), exc)
 
     def create_group(self, name, members):
         try:
@@ -53,7 +54,7 @@ class SignalCliRestApi(object):
         except Exception as exc:
             if exc.__class__ == SignalCliRestApiError:
                 raise exc
-            raise SignalCliRestApiError("Couldn't create Signal Messenger group: ") from exc
+            raise_from(SignalCliRestApiError("Couldn't create Signal Messenger group: "), exc)
 
     def list_groups(self):
         try:
@@ -67,7 +68,7 @@ class SignalCliRestApi(object):
         except Exception as exc:
             if exc.__class__ == SignalCliRestApiError:
                 raise exc
-            raise SignalCliRestApiError("Couldn't list Signal Messenger groups: ") from exc
+            raise_from(SignalCliRestApiError("Couldn't list Signal Messenger groups: "), exc)
 
     def send_message(self, message, recipients, filenames=None):
         """Send a message to one (or more) recipients.
@@ -114,4 +115,4 @@ class SignalCliRestApi(object):
         except Exception as exc:
             if exc.__class__ == SignalCliRestApiError:
                 raise exc
-            raise SignalCliRestApiError("Couldn't send signal message") from exc
+            raise_from(SignalCliRestApiError("Couldn't send signal message"), exc)

@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="pysignalclirestapi",
-    version="0.3.7",
+    version="0.3.8",
     author="Bernhard B.",
     author_email="bernhard@liftingcoder.com",
     description="Small python library for the Signal Cli REST API",
@@ -18,5 +18,5 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.0',
+    python_requires='>=2.7',
 )
