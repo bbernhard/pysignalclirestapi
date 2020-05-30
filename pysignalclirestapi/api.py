@@ -61,15 +61,31 @@ class SignalCliRestApi(object):
         try:
             url = self._base_url + "/v1/groups/" + self._number 
             resp = requests.get(url)
-            if resp.status_code != 200:
-                json_resp = resp.json()
+            json_resp = resp.json()
+            if resp.status_code != 200: 
                 if "error" in json_resp:
                     raise SignalCliRestApiError(json_resp["error"])
                 raise SignalCliRestApiError("Unknown error while listing Signal Messenger groups")
+            return json_resp
         except Exception as exc:
             if exc.__class__ == SignalCliRestApiError:
                 raise exc
             raise_from(SignalCliRestApiError("Couldn't list Signal Messenger groups: "), exc)
+
+    def receive(self):
+        try:
+            url = self._base_url + "/v1/receive/" + self._number
+            resp = requests.get(url)
+            json_resp = resp.json()
+            if resp.status_code != 200: 
+                if "error" in json_resp:
+                    raise SignalCliRestApiError(json_resp["error"])
+                raise SignalCliRestApiError("Unknown error while receiving Signal Messenger data")
+            return json_resp
+        except Exception as exc:
+            if exc.__class__ == SignalCliRestApiError:
+                raise exc
+            raise_from(SignalCliRestApiError("Couldn't receive Signal Messenger data: "), exc)
 
     def send_message(self, message, recipients, filenames=None):
         """Send a message to one (or more) recipients.
