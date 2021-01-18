@@ -87,6 +87,39 @@ class SignalCliRestApi(object):
                 raise exc
             raise_from(SignalCliRestApiError("Couldn't receive Signal Messenger data: "), exc)
 
+    def update_profile(self, name, filename=None):
+        """Update Profile.
+           
+        Set the name and optionally an avatar.
+        """
+
+        try:
+            url = self._base_url + "/v1/profiles/" + self._number
+            data = {
+                "name": name
+            }
+
+            if filename is not None:
+                with open(filename, "rb") as ofile:
+                    base64_avatar = None
+                    if sys.version_info >= (3, 0):
+                        base64_avatar = str(base64.b64encode(ofile.read()), encoding="utf-8")
+                    else:
+                        base64_avatar = str(base64.b64encode(ofile.read())).encode("utf-8")
+
+                    data["base64_avatar"] = base64_avatar
+
+            resp = requests.put(url, json=data)
+            if resp.status_code != 204:
+                json_resp = resp.json()
+                if "error" in json_resp:
+                    raise SignalCliRestApiError(json_resp["error"])
+                raise SignalCliRestApiError("Unknown error while updating profile")
+        except Exception as exc:
+            if exc.__class__ == SignalCliRestApiError:
+                raise exc
+            raise_from(SignalCliRestApiError("Couldn't update profile: "), exc)
+
     def send_message(self, message, recipients, filenames=None):
         """Send a message to one (or more) recipients.
          
