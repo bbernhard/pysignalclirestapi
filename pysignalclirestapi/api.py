@@ -37,6 +37,17 @@ class SignalCliRestApi(object):
         except Exception as exc:
             raise_from(SignalCliRestApiError("Couldn't determine REST API version"), exc)
 
+    def mode(self):
+        resp = requests.get(self._base_url + "/v1/about")
+        data = json.loads(resp.content)
+
+        mode = "unknown"
+        try:
+            mode = data["mode"]
+        except KeyError:
+            pass
+        return mode
+
     def create_group(self, name, members):
         try:
 
