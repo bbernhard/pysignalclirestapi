@@ -5,6 +5,7 @@ import base64
 import json
 from future.utils import raise_from
 import requests
+from .helpers import bytes_to_base64
 
 class SignalCliRestApiError(Exception):
     """SignalCliRestApiError base classi."""
@@ -112,12 +113,7 @@ class SignalCliRestApi(object):
 
             if filename is not None:
                 with open(filename, "rb") as ofile:
-                    base64_avatar = None
-                    if sys.version_info >= (3, 0):
-                        base64_avatar = str(base64.b64encode(ofile.read()), encoding="utf-8")
-                    else:
-                        base64_avatar = str(base64.b64encode(ofile.read())).encode("utf-8")
-
+                    base64_avatar = bytes_to_base64(ofile.read())
                     data["base64_avatar"] = base64_avatar
 
             resp = requests.put(url, json=data)
@@ -131,7 +127,7 @@ class SignalCliRestApi(object):
                 raise exc
             raise_from(SignalCliRestApiError("Couldn't update profile: "), exc)
 
-    def send_message(self, message, recipients, filenames=None):
+    def send_message(self, message, recipients, filenames=None, attachments_as_bytes=None):
         """Send a message to one (or more) recipients.
          
         Additionally files can be attached.
@@ -156,25 +152,22 @@ class SignalCliRestApi(object):
 
         try:
             if "v2" in api_versions:
-                base64_attachments = []
+                if attachments_as_bytes is None:
+                    base64_attachments = []
+                else:
+                    base64_attachments = [
+                        bytes_to_base64(attachment) for attachment in attachments_as_bytes
+                    ]
                 if filenames is not None: 
                     for filename in filenames:
                         with open(filename, "rb") as ofile:
-                            base64_attachment = None 
-                            if sys.version_info >= (3, 0):
-                                base64_attachment = str(base64.b64encode(ofile.read()), encoding="utf-8")
-                            else:
-                                base64_attachment = str(base64.b64encode(ofile.read())).encode("utf-8")
+                            base64_attachment = bytes_to_base64(ofile.read())
                             base64_attachments.append(base64_attachment)
                 data["base64_attachments"] = base64_attachments
             else: # fall back to api version 1 to stay downwards compatible
                 if filenames is not None and len(filenames) == 1:
                     with open(filenames[0], "rb") as ofile:
-                        base64_attachment = None 
-                        if sys.version_info >= (3, 0):
-                            base64_attachment = str(base64.b64encode(ofile.read()), encoding="utf-8")
-                        else:
-                            base64_attachment = str(base64.b64encode(ofile.read())).encode("utf-8")
+                        base64_attachment = bytes_to_base64(ofile.read())
                         data["base64_attachment"] = base64_attachment
             
             resp = requests.post(url, json=data)
