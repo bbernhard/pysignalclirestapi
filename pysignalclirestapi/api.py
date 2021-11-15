@@ -9,8 +9,6 @@ from future.utils import raise_from
 import requests
 from .helpers import bytes_to_base64
 
-print('correct module')
-
 
 class SignalCliRestApiError(Exception):
     """SignalCliRestApiError base classi."""
