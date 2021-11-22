@@ -3,7 +3,7 @@
 import sys
 import base64
 import json
-
+from abc import ABC, abstractmethod
 from requests.models import HTTPBasicAuth
 from future.utils import raise_from
 import requests
@@ -11,27 +11,47 @@ from .helpers import bytes_to_base64
 
 
 class SignalCliRestApiError(Exception):
-    """SignalCliRestApiError base classi."""
+    """SignalCliRestApiError base class."""
     pass
+
+
+class SignalCliRestApiAuth(ABC):
+    """SignalCliRestApiAuth base class."""
+
+    @abstractmethod
+    def getAuth():
+        pass
+
+
+class SignalCliRestApiHTTPBasicAuth(SignalCliRestApiAuth):
+    """SignalCliRestApiHTTPBasicAuth offers HTTP basic authentication."""
+
+    def __init__(self, basic_auth_user, basic_auth_pwd):
+        self._auth = HTTPBasicAuth(basic_auth_user, basic_auth_pwd)
+
+    def getAuth(self):
+        return self._auth
 
 
 class SignalCliRestApi(object):
     """SignalCliRestApi implementation."""
 
-    def __init__(self, base_url, number, basic_auth_user, basic_auth_pwd):
+    def __init__(self, base_url, number, auth=None):
         """Initialize the class."""
         super(SignalCliRestApi, self).__init__()
         self._base_url = base_url
         self._number = number
-        if basic_auth_user and basic_auth_pwd:
-            self._basic_auth = HTTPBasicAuth(basic_auth_user, basic_auth_pwd)
+        if auth:
+            assert issubclass(
+                type(auth), SignalCliRestApiAuth), "Expecting a subclass of SignalCliRestApiAuth as auth parameter"
+            self._auth = auth.getAuth()
         else:
-            self._basic_auth = None
+            self._auth = None
 
     def api_info(self):
         try:
             resp = requests.get(
-                self._base_url + "/v1/about", auth=self._basic_auth)
+                self._base_url + "/v1/about", auth=self._auth)
             if resp.status_code == 404:
                 return ["v1", 1]
             data = json.loads(resp.content)
@@ -50,7 +70,7 @@ class SignalCliRestApi(object):
 
     def mode(self):
         resp = requests.get(self._base_url + "/v1/about",
-                            auth=self._basic_auth)
+                            auth=self._auth)
         data = json.loads(resp.content)
 
         mode = "unknown"
@@ -68,7 +88,7 @@ class SignalCliRestApi(object):
                 "members": members,
                 "name": name
             }
-            resp = requests.post(url, json=data, auth=self._basic_auth)
+            resp = requests.post(url, json=data, auth=self._auth)
             if resp.status_code != 201 and resp.status_code != 200:
                 json_resp = resp.json()
                 if "error" in json_resp:
@@ -85,7 +105,7 @@ class SignalCliRestApi(object):
     def list_groups(self):
         try:
             url = self._base_url + "/v1/groups/" + self._number
-            resp = requests.get(url, auth=self._basic_auth)
+            resp = requests.get(url, auth=self._auth)
             json_resp = resp.json()
             if resp.status_code != 200:
                 if "error" in json_resp:
@@ -102,7 +122,7 @@ class SignalCliRestApi(object):
     def receive(self):
         try:
             url = self._base_url + "/v1/receive/" + self._number
-            resp = requests.get(url, auth=self._basic_auth)
+            resp = requests.get(url, auth=self._auth)
             json_resp = resp.json()
             if resp.status_code != 200:
                 if "error" in json_resp:
@@ -133,7 +153,7 @@ class SignalCliRestApi(object):
                     base64_avatar = bytes_to_base64(ofile.read())
                     data["base64_avatar"] = base64_avatar
 
-            resp = requests.put(url, json=data, auth=self._basic_auth)
+            resp = requests.put(url, json=data, auth=self._auth)
             if resp.status_code != 204:
                 json_resp = resp.json()
                 if "error" in json_resp:
@@ -189,7 +209,7 @@ class SignalCliRestApi(object):
                         base64_attachment = bytes_to_base64(ofile.read())
                         data["base64_attachment"] = base64_attachment
 
-            resp = requests.post(url, json=data, auth=self._basic_auth)
+            resp = requests.post(url, json=data, auth=self._auth)
             if resp.status_code != 201:
                 json_resp = resp.json()
                 if "error" in json_resp:
