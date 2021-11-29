@@ -19,7 +19,7 @@ class SignalCliRestApiAuth(ABC):
     """SignalCliRestApiAuth base class."""
 
     @abstractmethod
-    def getAuth():
+    def get_auth():
         pass
 
 
@@ -29,7 +29,7 @@ class SignalCliRestApiHTTPBasicAuth(SignalCliRestApiAuth):
     def __init__(self, basic_auth_user, basic_auth_pwd):
         self._auth = HTTPBasicAuth(basic_auth_user, basic_auth_pwd)
 
-    def getAuth(self):
+    def get_auth(self):
         return self._auth
 
 
@@ -44,7 +44,7 @@ class SignalCliRestApi(object):
         if auth:
             assert issubclass(
                 type(auth), SignalCliRestApiAuth), "Expecting a subclass of SignalCliRestApiAuth as auth parameter"
-            self._auth = auth.getAuth()
+            self._auth = auth.get_auth()
         else:
             self._auth = None
 

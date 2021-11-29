@@ -1,1 +1,1 @@
-from pysignalclirestapi.api import SignalCliRestApi, SignalCliRestApiError, SignalCliRestApiAuth, SignalCliRestApiAuth, SignalCliRestApiHTTPBasicAuth
+from pysignalclirestapi.api import SignalCliRestApi, SignalCliRestApiError, SignalCliRestApiAuth, SignalCliRestApiHTTPBasicAuth
