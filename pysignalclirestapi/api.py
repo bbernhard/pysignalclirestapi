@@ -221,3 +221,57 @@ class SignalCliRestApi(object):
                 raise exc
             raise_from(SignalCliRestApiError(
                 "Couldn't send signal message"), exc)
+
+    def list_attachments(self):
+        """List all downloaded attachments."""
+
+        try:
+            url = self._base_url + "/v1/attachments"
+            resp = requests.get(url, auth=self._auth)
+            if resp.status_code != 200:
+                json_resp = resp.json()
+                if "error" in json_resp:
+                    raise SignalCliRestApiError(json_resp["error"])
+                raise SignalCliRestApiError("Unknown error while listing attachments")
+
+            return resp.json()
+        except Exception as exc:
+            if exc.__class__ == SignalCliRestApiError:
+                raise exc
+            raise_from(SignalCliRestApiError("Couldn't list attachments: "), exc)
+
+    def get_attachment(self, attachment_id):
+        """Serve the attachment with the given id."""
+
+        try:
+            url = self._base_url + "/v1/attachments/" + attachment_id
+
+            resp = requests.get(url, auth=self._auth)
+            if resp.status_code != 200:
+                json_resp = resp.json()
+                if "error" in json_resp:
+                    raise SignalCliRestApiError(json_resp["error"])
+                raise SignalCliRestApiError("Unknown error while getting attachment")
+
+            return resp.content
+        except Exception as exc:
+            if exc.__class__ == SignalCliRestApiError:
+                raise exc
+            raise_from(SignalCliRestApiError("Couldn't get attachment: "), exc)
+
+    def delete_attachment(self, attachment_id):
+        """Remove the attachment with the given id from filesystem."""
+
+        try:
+            url = self._base_url + "/v1/attachments/" + attachment_id
+
+            resp = requests.delete(url, auth=self._auth)
+            if resp.status_code != 204:
+                json_resp = resp.json()
+                if "error" in json_resp:
+                    raise SignalCliRestApiError(json_resp["error"])
+                raise SignalCliRestApiError("Unknown error while deleting attachment")
+        except Exception as exc:
+            if exc.__class__ == SignalCliRestApiError:
+                raise exc
+            raise_from(SignalCliRestApiError("Couldn't delete attachment: "), exc)
