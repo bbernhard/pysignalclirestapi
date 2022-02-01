@@ -36,7 +36,7 @@ class SignalCliRestApiHTTPBasicAuth(SignalCliRestApiAuth):
 class SignalCliRestApi(object):
     """SignalCliRestApi implementation."""
 
-    def __init__(self, base_url, number, auth=None,  verify_ssl=True):
+    def __init__(self, base_url, number, auth=None, verify_ssl=True):
         """Initialize the class."""
         super(SignalCliRestApi, self).__init__()
         self._base_url = base_url
