@@ -166,7 +166,8 @@ class SignalCliRestApi(object):
                 raise exc
             raise_from(SignalCliRestApiError("Couldn't update profile: "), exc)
 
-    def send_message(self, message, recipients, filenames=None, attachments_as_bytes=None):
+    def send_message(self, message, recipients, filenames=None, attachments_as_bytes=None,
+                     mentions=None, quote_timestamp=None, quote_author=None, quote_message=None, quote_mentions=None):
         """Send a message to one (or more) recipients.
 
         Additionally files can be attached.
@@ -177,18 +178,34 @@ class SignalCliRestApi(object):
             if "v2" not in api_versions:  # multiple attachments only allowed when api version >= v2
                 raise SignalCliRestApiError(
                     "This signal-cli-rest-api version is not capable of sending multiple attachments. Please upgrade your signal-cli-rest-api docker container!")
+        if mentions or quote_timestamp or quote_author or quote_message or quote_mentions:
+            if "v3" not in api_versions:  # Mentions and quotes only allowed when api version >= v3
+                raise SignalCliRestApiError(
+                    "This signal-cli-rest-api version is not capable of sending mentions and quotes. Please upgrade your signal-cli-rest-api docker container!")
 
-        url = self._base_url + "/v2/send"
         # fall back to old api version to stay downwards compatible.
-        if "v2" not in api_versions:
+        if "v3" in api_versions:
+            url = self._base_url + "/v3/send"
+        elif "v2" in api_versions:
+            url = self._base_url + "/v2/send"
+        else:
             url = self._base_url + "/v1/send"
 
         data = {
             "message": message,
             "number": self._number,
+            "recipients": recipients,
         }
-
-        data["recipients"] = recipients
+        if mentions:
+            data["mentions"] = mentions
+        if quote_timestamp:
+            data["quote_timestamp"] = quote_timestamp
+        if quote_author:
+            data["quote_author"] = quote_author
+        if quote_message:
+            data["quote_message"] = quote_message
+        if quote_mentions:
+            data["quote_mentions"] = quote_mentions
 
         try:
             if "v2" in api_versions:
