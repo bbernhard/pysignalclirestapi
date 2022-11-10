@@ -49,13 +49,17 @@ class SignalCliRestApi(object):
         else:
             self._auth = None
 
+    def about(self):
+        resp = requests.get(self._base_url + "/v1/about", auth=self._auth, verify=self._verify_ssl)
+        if resp.status_code == 200:
+            return resp.json()
+        return None
+
     def api_info(self):
         try:
-            resp = requests.get(
-                self._base_url + "/v1/about", auth=self._auth, verify=self._verify_ssl)
-            if resp.status_code == 404:
+            data = self.about()
+            if data is None:
                 return ["v1", 1]
-            data = json.loads(resp.content)
             api_versions = data["versions"]
             build_nr = 1
             try:
@@ -69,10 +73,14 @@ class SignalCliRestApi(object):
             raise_from(SignalCliRestApiError(
                 "Couldn't determine REST API version"), exc)
 
+    def has_capability(self, endpoint, capability, about=None):
+        if about is None:
+            about = self.about()
+
+        return capability in about.get("capabilities", {}).get(endpoint, [])
+
     def mode(self):
-        resp = requests.get(self._base_url + "/v1/about",
-                            auth=self._auth, verify=self._verify_ssl)
-        data = json.loads(resp.content)
+        data = self.about()
 
         mode = "unknown"
         try:
@@ -173,23 +181,27 @@ class SignalCliRestApi(object):
         Additionally files can be attached.
         """
 
-        api_versions, build_nr = self.api_info()
+        about = self.about()
+
+        api_versions = about["versions"]
+
+        endpoint = "v2/send"
+        # fall back to old api version to stay downwards compatible.
+        if "v2" not in api_versions:
+            endpoint = "v1/send"
+
         if filenames is not None and len(filenames) > 1:
             if "v2" not in api_versions:  # multiple attachments only allowed when api version >= v2
                 raise SignalCliRestApiError(
                     "This signal-cli-rest-api version is not capable of sending multiple attachments. Please upgrade your signal-cli-rest-api docker container!")
-        if mentions or quote_timestamp or quote_author or quote_message or quote_mentions:
-            if "v3" not in api_versions:  # Mentions and quotes only allowed when api version >= v3
-                raise SignalCliRestApiError(
-                    "This signal-cli-rest-api version is not capable of sending mentions and quotes. Please upgrade your signal-cli-rest-api docker container!")
+        if mentions and not self.has_capability(endpoint, "mentions"):
+            raise SignalCliRestApiError(
+                "This signal-cli-rest-api version is not capable of sending mentions. Please upgrade your signal-cli-rest-api docker container!")
+        if (quote_timestamp or quote_author or quote_message or quote_mentions) and not self.has_capability(endpoint, "quotes"):
+            raise SignalCliRestApiError(
+                "This signal-cli-rest-api version is not capable of sending quotes. Please upgrade your signal-cli-rest-api docker container!")
 
-        # fall back to old api version to stay downwards compatible.
-        if "v3" in api_versions:
-            url = self._base_url + "/v3/send"
-        elif "v2" in api_versions:
-            url = self._base_url + "/v2/send"
-        else:
-            url = self._base_url + "/v1/send"
+        url = f"{self._base_url}/{endpoint}"
 
         data = {
             "message": message,
