@@ -49,13 +49,17 @@ class SignalCliRestApi(object):
         else:
             self._auth = None
 
+    def about(self):
+        resp = requests.get(self._base_url + "/v1/about", auth=self._auth, verify=self._verify_ssl)
+        if resp.status_code == 200:
+            return resp.json()
+        return None
+
     def api_info(self):
         try:
-            resp = requests.get(
-                self._base_url + "/v1/about", auth=self._auth, verify=self._verify_ssl)
-            if resp.status_code == 404:
+            data = self.about()
+            if data is None:
                 return ["v1", 1]
-            data = json.loads(resp.content)
             api_versions = data["versions"]
             build_nr = 1
             try:
@@ -69,10 +73,14 @@ class SignalCliRestApi(object):
             raise_from(SignalCliRestApiError(
                 "Couldn't determine REST API version"), exc)
 
+    def has_capability(self, endpoint, capability, about=None):
+        if about is None:
+            about = self.about()
+
+        return capability in about.get("capabilities", {}).get(endpoint, [])
+
     def mode(self):
-        resp = requests.get(self._base_url + "/v1/about",
-                            auth=self._auth, verify=self._verify_ssl)
-        data = json.loads(resp.content)
+        data = self.about()
 
         mode = "unknown"
         try:
@@ -166,29 +174,50 @@ class SignalCliRestApi(object):
                 raise exc
             raise_from(SignalCliRestApiError("Couldn't update profile: "), exc)
 
-    def send_message(self, message, recipients, filenames=None, attachments_as_bytes=None):
+    def send_message(self, message, recipients, filenames=None, attachments_as_bytes=None,
+                     mentions=None, quote_timestamp=None, quote_author=None, quote_message=None, quote_mentions=None):
         """Send a message to one (or more) recipients.
 
         Additionally files can be attached.
         """
 
-        api_versions, build_nr = self.api_info()
+        about = self.about()
+
+        api_versions = about["versions"]
+
+        endpoint = "v2/send"
+        # fall back to old api version to stay downwards compatible.
+        if "v2" not in api_versions:
+            endpoint = "v1/send"
+
         if filenames is not None and len(filenames) > 1:
             if "v2" not in api_versions:  # multiple attachments only allowed when api version >= v2
                 raise SignalCliRestApiError(
                     "This signal-cli-rest-api version is not capable of sending multiple attachments. Please upgrade your signal-cli-rest-api docker container!")
+        if mentions and not self.has_capability(endpoint, "mentions"):
+            raise SignalCliRestApiError(
+                "This signal-cli-rest-api version is not capable of sending mentions. Please upgrade your signal-cli-rest-api docker container!")
+        if (quote_timestamp or quote_author or quote_message or quote_mentions) and not self.has_capability(endpoint, "quotes"):
+            raise SignalCliRestApiError(
+                "This signal-cli-rest-api version is not capable of sending quotes. Please upgrade your signal-cli-rest-api docker container!")
 
-        url = self._base_url + "/v2/send"
-        # fall back to old api version to stay downwards compatible.
-        if "v2" not in api_versions:
-            url = self._base_url + "/v1/send"
+        url = f"{self._base_url}/{endpoint}"
 
         data = {
             "message": message,
             "number": self._number,
+            "recipients": recipients,
         }
-
-        data["recipients"] = recipients
+        if mentions:
+            data["mentions"] = mentions
+        if quote_timestamp:
+            data["quote_timestamp"] = quote_timestamp
+        if quote_author:
+            data["quote_author"] = quote_author
+        if quote_message:
+            data["quote_message"] = quote_message
+        if quote_mentions:
+            data["quote_mentions"] = quote_mentions
 
         try:
             if "v2" in api_versions:
