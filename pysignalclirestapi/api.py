@@ -305,3 +305,23 @@ class SignalCliRestApi(object):
             if exc.__class__ == SignalCliRestApiError:
                 raise exc
             raise_from(SignalCliRestApiError("Couldn't delete attachment: "), exc)
+
+    def search(self, numbers):
+        """Check if one or more phone numbers are registered with the Signal Service."""
+
+        try:
+            url = self._base_url + "/v1/search"
+            params = {"number": self._number, "numbers": numbers}
+
+            resp = requests.get(url, params=params, auth=self._auth, verify=self._verify_ssl)
+            if resp.status_code != 200:
+                json_resp = resp.json()
+                if "error" in json_resp:
+                    raise SignalCliRestApiError(json_resp["error"])
+                raise SignalCliRestApiError("Unknown error while searching phone numbers")
+
+            return resp.json()
+        except Exception as exc:
+            if exc.__class__ == SignalCliRestApiError:
+                raise exc
+            raise_from(SignalCliRestApiError("Couldn't search for phone numbers: "), exc)
