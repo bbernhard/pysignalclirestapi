@@ -5,7 +5,7 @@ import base64
 import json
 from abc import ABC, abstractmethod
 from requests.models import HTTPBasicAuth
-from future.utils import raise_from
+from six import raise_from
 import requests
 from .helpers import bytes_to_base64
 
