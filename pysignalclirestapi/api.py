@@ -175,7 +175,8 @@ class SignalCliRestApi(object):
             raise_from(SignalCliRestApiError("Couldn't update profile: "), exc)
 
     def send_message(self, message, recipients, filenames=None, attachments_as_bytes=None,
-                     mentions=None, quote_timestamp=None, quote_author=None, quote_message=None, quote_mentions=None):
+                     mentions=None, quote_timestamp=None, quote_author=None, quote_message=None,
+                     quote_mentions=None, text_mode="normal"):
         """Send a message to one (or more) recipients.
 
         Additionally files can be attached.
@@ -218,6 +219,9 @@ class SignalCliRestApi(object):
             data["quote_message"] = quote_message
         if quote_mentions:
             data["quote_mentions"] = quote_mentions
+
+        if "v2" in api_versions:
+            data["text_mode"] = text_mode
 
         try:
             if "v2" in api_versions:
