@@ -174,7 +174,7 @@ class SignalCliRestApi(object):
                 raise exc
             raise_from(SignalCliRestApiError("Couldn't update profile: "), exc)
 
-    def send_message(self, message, recipients, filenames=None, attachments_as_bytes=None,
+    def send_message(self, message, recipients:list, filenames=None, attachments_as_bytes=None,
                      mentions=None, quote_timestamp=None, quote_author=None, quote_message=None,
                      quote_mentions=None, text_mode="normal"):
         """Send a message to one (or more) recipients.
@@ -201,9 +201,12 @@ class SignalCliRestApi(object):
         if (quote_timestamp or quote_author or quote_message or quote_mentions) and not self.has_capability(endpoint, "quotes"):
             raise SignalCliRestApiError(
                 "This signal-cli-rest-api version is not capable of sending quotes. Please upgrade your signal-cli-rest-api docker container!")
-
+        
         url = f"{self._base_url}/{endpoint}"
 
+        if isinstance(recipients,str): # If sending "recipients" in data, recipients must be sent as a list, even it is a single recipient.
+            recipients = [recipients]
+        
         data = {
             "message": message,
             "number": self._number,
@@ -255,7 +258,80 @@ class SignalCliRestApi(object):
                 raise exc
             raise_from(SignalCliRestApiError(
                 "Couldn't send signal message"), exc)
+    def send_reaction(self, reaction:str, recipient:str, timestamp:int, target_author:str=None):
+        """Send (add) a reaction to a message. Uses timestamp to identify the message to react to.
+        
+        Reacting to a message that you have already reacted to will overwrite the previous reaction.
+        
+        Warning! Data in reaction and timestamp field is not validated and will not return an error, even if it is wrong.
+                
+        Args:
+            reaction (str): Reaction. Must be an Emoji.
+            recipient (str): Message recipient. Eg: +15555555555
+            timestamp (int): The timestamp of the target message (the message you want to react to).
+            target_author (str, optional): The target message author. If not provided, recipient will be used.
 
+        Returns:
+            Nothing is returned.
+        """
+        data = {
+            "reaction": reaction,
+            "recipient": recipient,
+            "target_author": target_author if target_author else recipient, # Use the recipient if another number is not provided
+            "timestamp": timestamp
+            }
+        try:
+            url = self._base_url + "/v1/reactions/" + self._number
+
+            resp = requests.post(url, json=data, auth=self._auth, verify=self._verify_ssl)
+            if resp.status_code != 204:
+                json_resp = resp.json()
+                if "error" in json_resp:
+                    raise SignalCliRestApiError(json_resp["error"])
+                raise SignalCliRestApiError("Unknown error while adding reaction")
+
+            return resp.content
+        except Exception as exc:
+            if exc.__class__ == SignalCliRestApiError:
+                raise exc
+            raise_from(SignalCliRestApiError("Couldn't add reaction: "), exc)
+    
+    def delete_reaction(self, recipient:str, timestamp:int, target_author:str=None): #TODO add docstring
+        """Delete (remove) a reaction to a message. Uses timestamp to identify the message.
+        
+        Warning! Data in timestamp field is not validated and will not return an error, even if it is wrong.  This includes trying to remove a reaction that does not exist.
+                
+        Args:
+            recipient (str): Message recipient. Eg: +15555555555
+            timestamp (int): The timestamp of the target message (the message you want to remove the reaction from).
+            target_author (str, optional): The target message author. If not provided, recipient will be used.
+
+        Returns:
+            Nothing is returned.
+        """
+    
+        data = {
+            "recipient": recipient,
+            "target_author": target_author if target_author else recipient, # Use the recipient if another number is not provided
+            "timestamp": timestamp
+            }
+        try:
+            url = self._base_url + "/v1/reactions/" + self._number
+
+            resp = requests.delete(url, json=data, auth=self._auth, verify=self._verify_ssl)
+            if resp.status_code != 200:
+                json_resp = resp.json()
+                if "error" in json_resp:
+                    raise SignalCliRestApiError(json_resp["error"])
+                raise SignalCliRestApiError("Unknown error while removing reaction")
+
+            return resp.content
+        except Exception as exc:
+            if exc.__class__ == SignalCliRestApiError:
+                raise exc
+            raise_from(SignalCliRestApiError("Couldn't remove reaction: "), exc)
+    
+    
     def list_attachments(self):
         """List all downloaded attachments."""
 
