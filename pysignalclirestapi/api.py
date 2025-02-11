@@ -48,7 +48,63 @@ class SignalCliRestApi(object):
             self._auth = auth.get_auth()
         else:
             self._auth = None
+    
+    def _formatParams(self, params, endpoint:str=None):
+        formattedData = {}
+        
+        params.pop('self')
+        # Create a JSON query object
+        formattedData = {}
+        for item, value in params.items(): # Check params, add anything that isn't blank to the query
+            if value !=None:
+                # Allow conditional formatting, depending on the endpoint
+                if endpoint in ['receive']:
+                    value = 'true' if value is True else 'false' if value is False else value # Convert bool to string
+                    
+                elif endpoint in ['update_contact']:
+                    item = 'recipient' if item == 'contact' else item # Rename contact to recipient
+                    
+                formattedData.update({item : value})
+        
+        return formattedData
+    
+    def _requester(self, method, url, data=None, successCode:int=200, errorUnknown=None, errorCouldnt=None):
+        """Internal central requester.
 
+        Args:
+            method (str): Rest API method.
+            url (str): API url
+            data (any, optional): Optional params or JSON data. Defaults to None.
+            successCode (int, optional): Custom success code. Defaults to 200.
+            errorUnknown (str, optional): Custom error for "unknown error". Defaults to None.
+            errorCouldnt (str, optional): Custom error for "Couldn't". Defaults to None.
+        """
+        
+        params = None
+        json = None
+        
+        try:
+            
+            if method in ['post','put','delete']:
+                json=data
+            
+            else:
+                params=data
+
+            resp = requests.request(method=method, url=url, params=params, json=json, auth=self._auth, verify=self._verify_ssl)
+            if resp.status_code != successCode:
+                json_resp = resp.json()
+                if "error" in json_resp:
+                    raise SignalCliRestApiError(json_resp["error"])
+                raise SignalCliRestApiError(
+                    f"Unknown error {errorUnknown}")
+            else:
+                return resp # Return raw response for now
+        except Exception as exc:
+            if exc.__class__ == SignalCliRestApiError:
+                raise exc
+            raise_from(SignalCliRestApiError(f"Couldn't {errorCouldnt}: "), exc)
+        
     def about(self):
         resp = requests.get(self._base_url + "/v1/about", auth=self._auth, verify=self._verify_ssl)
         if resp.status_code == 200:
@@ -143,32 +199,12 @@ class SignalCliRestApi(object):
         Returns:
             list: List of messages
         """
-        
         rawParams = locals().copy()
-        rawParams.pop('self')
-        # Create a JSON query object
-        formattedData = {}
-        for item, value in rawParams.items(): # Check params, add anything that isn't blank to the query
-            if value !=None:
-
-                value = 'true' if value is True else 'false' if value is False else value # Convert bool to string
-                formattedData.update({item : value})
+        url = self._base_url + "/v1/receive/" + self._number
+        data = self._formatParams(params=rawParams, endpoint='receive')
         
-        try:
-            url = self._base_url + "/v1/receive/" + self._number
-            resp = requests.get(url, params=formattedData, auth=self._auth, verify=self._verify_ssl)
-            json_resp = resp.json()
-            if resp.status_code != 200:
-                if "error" in json_resp:
-                    raise SignalCliRestApiError(json_resp["error"])
-                raise SignalCliRestApiError(
-                    "Unknown error while receiving Signal Messenger data")
-            return json_resp
-        except Exception as exc:
-            if exc.__class__ == SignalCliRestApiError:
-                raise exc
-            raise_from(SignalCliRestApiError(
-                "Couldn't receive Signal Messenger data: "), exc)
+        request = self._requester(method='get', url=url, data=data, successCode=200, errorUnknown='while receiving Signal Messenger data', errorCouldnt='receive Signal Messenger data')
+        return request.json()
 
     def update_profile(self, name, filename=None):
         """Update Profile.
@@ -329,27 +365,12 @@ class SignalCliRestApi(object):
         Returns:
             Nothing is returned.
         """
-        data = {
-            "reaction": reaction,
-            "recipient": recipient,
-            "target_author": target_author if target_author else recipient, # Use the recipient if another number is not provided
-            "timestamp": timestamp
-            }
-        try:
-            url = self._base_url + "/v1/reactions/" + self._number
-
-            resp = requests.post(url, json=data, auth=self._auth, verify=self._verify_ssl)
-            if resp.status_code != 204:
-                json_resp = resp.json()
-                if "error" in json_resp:
-                    raise SignalCliRestApiError(json_resp["error"])
-                raise SignalCliRestApiError("Unknown error while adding reaction")
-
-            return resp.content
-        except Exception as exc:
-            if exc.__class__ == SignalCliRestApiError:
-                raise exc
-            raise_from(SignalCliRestApiError("Couldn't add reaction: "), exc)
+        target_author = target_author if target_author else recipient
+        rawParams = locals().copy()
+        url = self._base_url + "/v1/reactions/" + self._number
+        data = self._formatParams(rawParams)
+        
+        self._requester(method='post', url=url, data=data, successCode=204, errorUnknown='while adding reaction', errorCouldnt='add reaction')
     
     def delete_reaction(self, recipient:str, timestamp:int, target_author:str=None): #TODO add docstring
         """Delete (remove) a reaction to a message. Uses timestamp to identify the message.
@@ -364,46 +385,19 @@ class SignalCliRestApi(object):
         Returns:
             Nothing is returned.
         """
-    
-        data = {
-            "recipient": recipient,
-            "target_author": target_author if target_author else recipient, # Use the recipient if another number is not provided
-            "timestamp": timestamp
-            }
-        try:
-            url = self._base_url + "/v1/reactions/" + self._number
-
-            resp = requests.delete(url, json=data, auth=self._auth, verify=self._verify_ssl)
-            if resp.status_code != 200:
-                json_resp = resp.json()
-                if "error" in json_resp:
-                    raise SignalCliRestApiError(json_resp["error"])
-                raise SignalCliRestApiError("Unknown error while removing reaction")
-
-            return resp.content
-        except Exception as exc:
-            if exc.__class__ == SignalCliRestApiError:
-                raise exc
-            raise_from(SignalCliRestApiError("Couldn't remove reaction: "), exc)
-    
+        target_author = target_author if target_author else recipient
+        rawParams = locals().copy()
+        url = self._base_url + "/v1/reactions/" + self._number
+        data = self._formatParams(rawParams)
+        
+        self._requester(method='delete', url=url, data=data, successCode=204, errorUnknown='while removing reaction', errorCouldnt='remove reaction')
     
     def list_attachments(self):
         """List all downloaded attachments."""
-
-        try:
-            url = self._base_url + "/v1/attachments"
-            resp = requests.get(url, auth=self._auth, verify=self._verify_ssl)
-            if resp.status_code != 200:
-                json_resp = resp.json()
-                if "error" in json_resp:
-                    raise SignalCliRestApiError(json_resp["error"])
-                raise SignalCliRestApiError("Unknown error while listing attachments")
-
-            return resp.json()
-        except Exception as exc:
-            if exc.__class__ == SignalCliRestApiError:
-                raise exc
-            raise_from(SignalCliRestApiError("Couldn't list attachments: "), exc)
+        url = self._base_url + "/v1/attachments"
+        
+        request = self._requester(method='get', url=url, successCode=200, errorUnknown='while listing attachments', errorCouldnt='list attachments')
+        return request.json()
 
     def get_attachment(self, attachment_id):
         """Serve the attachment with the given id."""
@@ -460,3 +454,29 @@ class SignalCliRestApi(object):
             if exc.__class__ == SignalCliRestApiError:
                 raise exc
             raise_from(SignalCliRestApiError("Couldn't search for phone numbers: "), exc)
+            
+    def get_contacts(self):
+        """Get all Signal contacts.
+
+        Returns:
+            list: List of contacts.
+        """
+        url = self._base_url + "/v1/contacts/" +self._number
+        
+        request = self._requester(method='get', url=url, successCode=200, errorUnknown='while updating profile', errorCouldnt='update profile')
+        return request.json()
+    
+    def update_contact(self, contact:str, name:str=None, expiration_in_seconds:int=None):
+        """Update a signal Contact. Only works if run as the main device, will not work if linked.
+
+        Args:
+            contact (str): Contact number to update.
+            name (str, optional): Contact name. Defaults to None.
+            expiration_in_seconds (int, optional): Disappearing Messages expiration in seconds. Defaults to None (disabled).
+        """
+        rawParams = locals().copy()
+        url = self._base_url + "/v1/contacts/" + self._number
+        data = self._formatParams(rawParams, endpoint='update_contact')
+        
+        request = self._requester(method='put', url=url, data=data, successCode=204, errorUnknown='while updating profile', errorCouldnt='update profile')
+        return request.json()
