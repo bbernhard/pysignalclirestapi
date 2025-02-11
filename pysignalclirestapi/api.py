@@ -89,7 +89,7 @@ class SignalCliRestApi(object):
             pass
         return mode
 
-    def create_group(self, name, members):
+    def create_group(self, name:str, members:list):
         try:
 
             url = self._base_url + "/v1/groups/" + self._number
@@ -128,10 +128,35 @@ class SignalCliRestApi(object):
             raise_from(SignalCliRestApiError(
                 "Couldn't list Signal Messenger groups: "), exc)
 
-    def receive(self):
+    def receive(self, ignore_attachments:bool=False, ignore_stories:bool=False, send_read_receipts:bool=False, max_messages:int=None, timeout:int=1):
+        """Receive (get) Signal Messages from the Signal Network. 
+        
+        If you are running the docker container in normal/native mode, this is a GET endpoint. In json-rpc mode this is a websocket endpoint.
+        
+        Args:
+            ignore_attachments (bool, optional): Ignore attachments. Defaults to False.
+            ignore_stories (bool, optional): Ignore stories. Defaults to False.
+            send_read_receipts (bool, optional): Send read receipts. Defaults to False.
+            max_messages (int, optional): Maximum messages to get per request.  Messages will be returned oldest to newest. Defaults to None (unlimited).
+            timeout (int, optional): Receive timeout in seconds. Defaults to 1.
+
+        Returns:
+            list: List of messages
+        """
+        
+        rawParams = locals().copy()
+        rawParams.pop('self')
+        # Create a JSON query object
+        formattedData = {}
+        for item, value in rawParams.items(): # Check params, add anything that isn't blank to the query
+            if value !=None:
+
+                value = 'true' if value is True else 'false' if value is False else value # Convert bool to string
+                formattedData.update({item : value})
+        
         try:
             url = self._base_url + "/v1/receive/" + self._number
-            resp = requests.get(url, auth=self._auth, verify=self._verify_ssl)
+            resp = requests.get(url, params=formattedData, auth=self._auth, verify=self._verify_ssl)
             json_resp = resp.json()
             if resp.status_code != 200:
                 if "error" in json_resp:
@@ -174,12 +199,39 @@ class SignalCliRestApi(object):
                 raise exc
             raise_from(SignalCliRestApiError("Couldn't update profile: "), exc)
 
-    def send_message(self, message, recipients:list, filenames=None, attachments_as_bytes=None,
+    def send_message(self, message:str, recipients:list, filenames=None, attachments_as_bytes=None,
                      mentions=None, quote_timestamp=None, quote_author=None, quote_message=None,
                      quote_mentions=None, text_mode="normal"):
         """Send a message to one (or more) recipients.
-
-        Additionally files can be attached.
+        
+        Supports attachments, styled text, mentioning, and quoting
+        
+        Args:
+            message (str): Message.
+            recipients (list): Recipient(s).
+            filenames (_type_, optional): _description_.
+            attachments_as_bytes (list, optional): Attachment(s) in base64.
+            mentions (list, optional): Mention another user. See formatting below.
+            quote_timestamp (int, optional): Timestamp of qouted message.
+            quote_author (str, optional): The quoted message author.
+            quote_message (str, optional): The quoted message content.
+            quote_mentions (list, optional): Any mentions contained within the quote.
+            text_mode (str, optional): Set text mode ["styled","normal"]. See styled text options below. Defaults to "normal".
+        
+        Mentions objects should be formatted as dict/JSON and need to contain the following
+            author (str): The person you are mention.
+            length (int): The length of the mention.
+            start (int): The starting character of the mention.
+        
+        Text styling (must set text_mode to "styled")
+            \*italic text*
+            \*\*bold text**
+            \~strikethrough text~
+            ||spoiler||
+            \`monospace`
+        
+        Returns:
+            dict Sent message timestamp.
         """
 
         about = self.about()
@@ -253,11 +305,14 @@ class SignalCliRestApi(object):
                     raise SignalCliRestApiError(json_resp["error"])
                 raise SignalCliRestApiError(
                     "Unknown error while sending signal message")
+            else:
+                return json.loads(resp.content)
         except Exception as exc:
             if exc.__class__ == SignalCliRestApiError:
                 raise exc
             raise_from(SignalCliRestApiError(
                 "Couldn't send signal message"), exc)
+    
     def send_reaction(self, reaction:str, recipient:str, timestamp:int, target_author:str=None):
         """Send (add) a reaction to a message. Uses timestamp to identify the message to react to.
         
