@@ -63,12 +63,13 @@ class SignalCliRestApi(object):
                     
                 elif endpoint in ['update_contact']:
                     item = 'recipient' if item == 'contact' else item # Rename contact to recipient
-                    
+                elif endpoint in ['update_group'] and item in ['ofile','filename']: # Skip attachments
+                    continue
                 formattedData.update({item : value})
         
         return formattedData
     
-    def _requester(self, method, url, data=None, successCode:int=200, errorUnknown=None, errorCouldnt=None):
+    def _requester(self, method, url, data=None, successCode:any=200, errorUnknown=None, errorCouldnt=None):
         """Internal central requester.
 
         Args:
@@ -82,7 +83,10 @@ class SignalCliRestApi(object):
         
         params = None
         json = None
-        
+        if isinstance(successCode, list):
+            pass
+        else: # Make it a list
+            successCode = [successCode]
         try:
             
             if method in ['post','put','delete']:
@@ -92,7 +96,7 @@ class SignalCliRestApi(object):
                 params=data
 
             resp = requests.request(method=method, url=url, params=params, json=json, auth=self._auth, verify=self._verify_ssl)
-            if resp.status_code != successCode:
+            if resp.status_code not in successCode:
                 json_resp = resp.json()
                 if "error" in json_resp:
                     raise SignalCliRestApiError(json_resp["error"])
@@ -145,44 +149,131 @@ class SignalCliRestApi(object):
             pass
         return mode
 
-    def create_group(self, name:str, members:list):
-        try:
-
-            url = self._base_url + "/v1/groups/" + self._number
-            data = {
-                "members": members,
-                "name": name
+    def create_group(self, name:str, members:list, description:str=None, expiration_time:int=0, group_link:str='disabled', permissions:dict=None):
+        members = [members] if isinstance(members, str) else members
+        rawParams = locals().copy()
+        removeMe = {
+            "description": "string",
+            "expiration_time": 0,
+            "group_link": "disabled",
+            "members": [
+                "string"
+            ],
+            "name": "string",
+            "permissions": {
+                "add_members": "only-admins",
+                "edit_group": "only-admins"
             }
-            resp = requests.post(url, json=data, auth=self._auth, verify=self._verify_ssl)
-            if resp.status_code != 201 and resp.status_code != 200:
-                json_resp = resp.json()
-                if "error" in json_resp:
-                    raise SignalCliRestApiError(json_resp["error"])
-                raise SignalCliRestApiError(
-                    "Unknown error while creating Signal Messenger group")
-            return resp.json()["id"]
-        except Exception as exc:
-            if exc.__class__ == SignalCliRestApiError:
-                raise exc
-            raise_from(SignalCliRestApiError(
-                "Couldn't create Signal Messenger group: "), exc)
+        }
+        
+        url = self._base_url + "/v1/groups/" + self._number
+        data = self._formatParams(rawParams)
+        #TODO confirm whether 200 is ever returned
+        request = self._requester(method='post', url=url, data=data, successCode=[201,200], errorUnknown='while creating Signal Messenger group', errorCouldnt='create Signal Messenger group')
+        return request.json()
 
     def list_groups(self):
-        try:
-            url = self._base_url + "/v1/groups/" + self._number
-            resp = requests.get(url, auth=self._auth, verify=self._verify_ssl)
-            json_resp = resp.json()
-            if resp.status_code != 200:
-                if "error" in json_resp:
-                    raise SignalCliRestApiError(json_resp["error"])
-                raise SignalCliRestApiError(
-                    "Unknown error while listing Signal Messenger groups")
-            return json_resp
-        except Exception as exc:
-            if exc.__class__ == SignalCliRestApiError:
-                raise exc
-            raise_from(SignalCliRestApiError(
-                "Couldn't list Signal Messenger groups: "), exc)
+        """List all Signal groups.
+        
+        Includes groups you are no longer apart of.
+        
+        Returns:
+            list: Your groups.
+        """
+        url = self._base_url + "/v1/groups/" + self._number
+        
+        request = self._requester(method='get', url=url, successCode=200, errorUnknown='while listing Signal Messenger groups', errorCouldnt='list Signal Messenger groups')
+        return request.json()
+    
+    def get_group(self, groupid:str):
+        """Get a single Signal group. 
+
+        Args:
+            groupid (str): Signal group ID.
+
+        Returns:
+            dict: Group details.
+        """
+        url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid)
+        
+        request = self._requester(method='get', url=url, successCode=200, errorUnknown='while getting Signal Messenger group', errorCouldnt='get Signal Messenger group')
+        return request.json()
+    
+    def update_group(self, groupid:str, name:str=None, description:str=None, expiration_time:int=None, filename:str=None):
+        if filename is not None:
+            with open(filename, "rb") as ofile:
+                base64_avatar = bytes_to_base64(ofile.read())
+
+        rawParams = locals().copy()
+        url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid)
+        data = self._formatParams(rawParams,'update_group')
+        # TODO add some sort of confirmation for the user
+        request = self._requester(method='put', url=url ,data=data, successCode=204, errorUnknown='while updating Signal Messenger group', errorCouldnt='update Signal Messenger group')
+    
+    def delete_group(self, groupid:str):
+        """Delete a Signal group.
+
+        Args:
+            groupid (str): Signal group ID.
+        """
+        url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid)
+        
+        request = self._requester(method='delete', url=url, successCode=200, errorUnknown='while deleting Signal Messenger group', errorCouldnt='delete Signal Messenger group')
+    
+    def join_group(self, groupid:str):
+        url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/join'
+        #TODO if success is not clear, add an additional call to get_group() and return the details
+        request = self._requester(method='post', url=url, successCode=204, errorUnknown='while joining Signal Messenger group', errorCouldnt='join Signal Messenger group')
+        return request.json()
+    
+    def leave_group(self, groupid:str):
+        url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/quit'
+        
+        request = self._requester(method='post', url=url, successCode=204, errorUnknown='while leaving Signal Messenger group', errorCouldnt='leave Signal Messenger group')
+        return request.json()
+    
+    def block_group(self, groupid:str):
+        url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/block'
+        
+        request = self._requester(method='post', url=url, successCode=204, errorUnknown='while blocking Signal Messenger group', errorCouldnt='block Signal Messenger group')
+        return request.json()
+    
+    def add_group_members(self, groupid:str, members:list):
+        members = [members] if isinstance(members,str) else members # Listify! #TODO could this be moved to the data formatter
+        
+        rawParams = locals().copy()
+        url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/members'
+        data = self._formatParams(rawParams)
+        
+        request = self._requester(method='post', url=url, data=data, successCode=204, errorUnknown='while adding members to Signal Messenger group', errorCouldnt='add members to Signal Messenger group')
+        #TODO add some sort of response?
+    
+    def remove_group_members(self, groupid:str, members:list):
+        members = [members] if isinstance(members, str) else members # Listify! #TODO could this be moved to the data formatter
+        
+        rawParams = locals().copy()
+        url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/members'
+        data = self._formatParams(rawParams)
+        
+        request = self._requester(method='delete', url=url, data=data, successCode=204, errorUnknown='while removing members from Signal Messenger group', errorCouldnt='remove members from Signal Messenger group')
+            
+    def add_group_admins(self, groupid:str, admins:list):
+        admins = [admins] if isinstance(admins, str) else admins # Listify! #TODO could this be moved to the data formatter
+        
+        rawParams = locals().copy()
+        url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/admins'
+        data = self._formatParams(rawParams)
+        
+        request = self._requester(method='post', url=url, data=data, successCode=204, errorUnknown='while adding admins to Signal Messenger group', errorCouldnt='add admins to Signal Messenger group')
+    
+    def remove_group_admins(self, groupid:str, admins:list):
+        admins = [admins] if isinstance(admins, str) else admins # Listify! #TODO could this be moved to the data formatter
+        
+        rawParams = locals().copy()
+        url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/admins'
+        data = self._formatParams(rawParams)
+        
+        request = self._requester(method='delete', url=url, data=data, successCode=204, errorUnknown='while removing admins from Signal Messenger group', errorCouldnt='remove admins from Signal Messenger group')
 
     def receive(self, ignore_attachments:bool=False, ignore_stories:bool=False, send_read_receipts:bool=False, max_messages:int=None, timeout:int=1):
         """Receive (get) Signal Messages from the Signal Network. 
@@ -300,6 +391,7 @@ class SignalCliRestApi(object):
             "number": self._number,
             "recipients": recipients,
         }
+        #TODO could this all use the _formatter
         if mentions:
             data["mentions"] = mentions
         if quote_timestamp:
@@ -480,3 +572,5 @@ class SignalCliRestApi(object):
         
         request = self._requester(method='put', url=url, data=data, successCode=204, errorUnknown='while updating profile', errorCouldnt='update profile')
         return request.json()
+    
+    
