@@ -50,6 +50,17 @@ class SignalCliRestApi(object):
             self._auth = None
     
     def _formatParams(self, params, endpoint:str=None):
+        """Format parameters/args/data for API calls.
+        
+        If endpoint is set to "receive", boolean values will be converted to a string.
+
+        Args:
+            params (list): Parameters/args to format
+            endpoint (str, optional): Optionally, include an endpoint if specific actions need to be taken with it.
+
+        Returns:
+            list: Formatted params/data
+        """
         formattedData = {}
         
         params.pop('self')
@@ -63,22 +74,25 @@ class SignalCliRestApi(object):
                     
                 elif endpoint in ['update_contact']:
                     item = 'recipient' if item == 'contact' else item # Rename contact to recipient
-                elif endpoint in ['update_group'] and item in ['ofile','filename']: # Skip attachments
+                elif endpoint in ['update_group', 'update_profile'] and item in ['ofile','filename']: # Skip raw attachment data
                     continue
+                elif endpoint in ['verify_indentity'] and item in ['number_to_trust']: # Skip trusted number as it is added to URL.
+                    continue
+                
                 formattedData.update({item : value})
         
         return formattedData
     
     def _requester(self, method, url, data=None, successCode:any=200, errorUnknown=None, errorCouldnt=None):
-        """Internal central requester.
+        """Internal requester
 
         Args:
             method (str): Rest API method.
             url (str): API url
-            data (any, optional): Optional params or JSON data. Defaults to None.
-            successCode (int, optional): Custom success code. Defaults to 200.
-            errorUnknown (str, optional): Custom error for "unknown error". Defaults to None.
-            errorCouldnt (str, optional): Custom error for "Couldn't". Defaults to None.
+            data (any, optional): Optional params or JSON data.
+            successCode (ant, optional): Success code(s) returned by API call. Defaults to 200.
+            errorUnknown (str, optional): Custom error for "unknown error".
+            errorCouldnt (str, optional): Custom error for "Couldn't".
         """
         
         params = None
@@ -110,6 +124,11 @@ class SignalCliRestApi(object):
             raise_from(SignalCliRestApiError(f"Couldn't {errorCouldnt}: "), exc)
         
     def about(self):
+        """Get general information about the API.
+
+        Returns:
+            dict: API details.
+        """
         resp = requests.get(self._base_url + "/v1/about", auth=self._auth, verify=self._verify_ssl)
         if resp.status_code == 200:
             return resp.json()
@@ -150,21 +169,25 @@ class SignalCliRestApi(object):
         return mode
 
     def create_group(self, name:str, members:list, description:str=None, expiration_time:int=0, group_link:str='disabled', permissions:dict=None):
+        """Create a Signal group.
+
+        Args:
+            name (str): Group name.
+            members (str, list): Member(s) to add.  Will accept a single user as a string, otherwise use a list.
+            description (str, optional): Group description.
+            eexpiration_time (int, optional): Disappearing Messages expiration in seconds. Defaults to None (disabled).
+            group_link (str, optional): Allow users to join from a link.  Options are 'disabled', 'enabled', 'enabled-with-approval'. Defaults to 'disabled'.
+            permissions (dict, optional): Set additional permissions (see below).
+            
+        Permissions:
+            add_members (str): Whether group members can add users.  Options are 'only-admins', 'every-member'.  Defaults to 'only-admins'.
+            edit_group (str): Whether group members can edit (update) the group.  Options are 'only-admins', 'every-member'.  Defaults to 'only-admins'.
+
+        Returns:
+            _type_: Group ID.
+        """
         members = [members] if isinstance(members, str) else members
         rawParams = locals().copy()
-        removeMe = {
-            "description": "string",
-            "expiration_time": 0,
-            "group_link": "disabled",
-            "members": [
-                "string"
-            ],
-            "name": "string",
-            "permissions": {
-                "add_members": "only-admins",
-                "edit_group": "only-admins"
-            }
-        }
         
         url = self._base_url + "/v1/groups/" + self._number
         data = self._formatParams(rawParams)
@@ -199,7 +222,16 @@ class SignalCliRestApi(object):
         request = self._requester(method='get', url=url, successCode=200, errorUnknown='while getting Signal Messenger group', errorCouldnt='get Signal Messenger group')
         return request.json()
     
-    def update_group(self, groupid:str, name:str=None, description:str=None, expiration_time:int=None, filename:str=None):
+    def update_group(self, groupid:str, name:str=None, description:str=None, expiration_time:int=None, filename:str=None): #TODO look into rate limiting, maybe thats why it has so much trouble sending
+        """Update a signal group.  Group icon (image) capability may not be working.
+
+        Args:
+            groupid (str): Signal group ID.
+            name (str, optional): Updated group name.
+            description (str, optional): Updated group description.
+            expiration_time (int, optional): Disappearing Messages expiration in seconds. Defaults to None (disabled).
+            filename (str, optional): Filename of new profile image.
+        """
         if filename is not None:
             with open(filename, "rb") as ofile:
                 base64_avatar = bytes_to_base64(ofile.read())
@@ -221,24 +253,46 @@ class SignalCliRestApi(object):
         request = self._requester(method='delete', url=url, successCode=200, errorUnknown='while deleting Signal Messenger group', errorCouldnt='delete Signal Messenger group')
     
     def join_group(self, groupid:str):
+        """Join a Signal group by ID.
+
+        Args:
+            groupid (str): Signal group ID to join.
+        """
+        
         url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/join'
         #TODO if success is not clear, add an additional call to get_group() and return the details
         request = self._requester(method='post', url=url, successCode=204, errorUnknown='while joining Signal Messenger group', errorCouldnt='join Signal Messenger group')
         return request.json()
     
     def leave_group(self, groupid:str):
+        """Leave a Signal group.
+
+        Args:
+            groupid (str): Signal group ID.
+        """
         url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/quit'
         
         request = self._requester(method='post', url=url, successCode=204, errorUnknown='while leaving Signal Messenger group', errorCouldnt='leave Signal Messenger group')
         return request.json()
     
     def block_group(self, groupid:str):
+        """Block a Signal group.
+
+        Args:
+            groupid (str): Signal group ID.
+        """
         url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/block'
         
         request = self._requester(method='post', url=url, successCode=204, errorUnknown='while blocking Signal Messenger group', errorCouldnt='block Signal Messenger group')
         return request.json()
     
     def add_group_members(self, groupid:str, members:list):
+        """Add user(s) (members) to a Signal group.
+
+        Args:
+            groupid (str): _Signal group ID.
+            members (str, list): Member(s) to add.  Will accept a single user as a string, otherwise use a list.
+        """
         members = [members] if isinstance(members,str) else members # Listify! #TODO could this be moved to the data formatter
         
         rawParams = locals().copy()
@@ -249,6 +303,12 @@ class SignalCliRestApi(object):
         #TODO add some sort of response?
     
     def remove_group_members(self, groupid:str, members:list):
+        """Remove user(s) (members) to a Signal group.
+
+        Args:
+            groupid (str): _Signal group ID.
+            members (str, list): Member(s) to remove.  Will accept a single user as a string, otherwise use a list.
+        """
         members = [members] if isinstance(members, str) else members # Listify! #TODO could this be moved to the data formatter
         
         rawParams = locals().copy()
@@ -258,6 +318,12 @@ class SignalCliRestApi(object):
         request = self._requester(method='delete', url=url, data=data, successCode=204, errorUnknown='while removing members from Signal Messenger group', errorCouldnt='remove members from Signal Messenger group')
             
     def add_group_admins(self, groupid:str, admins:list):
+        """Promote user(s) to admin of a Signal group.  User must already be in the group to be promoted.
+
+        Args:
+            groupid (str): _Signal group ID.
+            admins (str, list): Users(s) to promote.  Will accept a single user as a string, otherwise use a list.
+        """
         admins = [admins] if isinstance(admins, str) else admins # Listify! #TODO could this be moved to the data formatter
         
         rawParams = locals().copy()
@@ -267,6 +333,12 @@ class SignalCliRestApi(object):
         request = self._requester(method='post', url=url, data=data, successCode=204, errorUnknown='while adding admins to Signal Messenger group', errorCouldnt='add admins to Signal Messenger group')
     
     def remove_group_admins(self, groupid:str, admins:list):
+        """Demote admin(s) of a Signal group.  Demoting a user will not remove them from the group.
+
+        Args:
+            groupid (str): _Signal group ID.
+            admins (str, list): Users(s) to demote.  Will accept a single user as a string, otherwise use a list.
+        """
         admins = [admins] if isinstance(admins, str) else admins # Listify! #TODO could this be moved to the data formatter
         
         rawParams = locals().copy()
@@ -336,7 +408,7 @@ class SignalCliRestApi(object):
         Args:
             message (str): Message.
             recipients (list): Recipient(s).
-            filenames (_type_, optional): _description_.
+            filenames (str, optional): Filename(s) to be sent.
             attachments_as_bytes (list, optional): Attachment(s) in base64.
             mentions (list, optional): Mention another user. See formatting below.
             quote_timestamp (int, optional): Timestamp of qouted message.
@@ -345,7 +417,7 @@ class SignalCliRestApi(object):
             quote_mentions (list, optional): Any mentions contained within the quote.
             text_mode (str, optional): Set text mode ["styled","normal"]. See styled text options below. Defaults to "normal".
         
-        Mentions objects should be formatted as dict/JSON and need to contain the following
+        Mention objects should be formatted as dict/JSON and need to contain the following.
             author (str): The person you are mention.
             length (int): The length of the mention.
             start (int): The starting character of the mention.
@@ -358,7 +430,7 @@ class SignalCliRestApi(object):
             \`monospace`
         
         Returns:
-            dict Sent message timestamp.
+            dict: Sent message timestamp.
         """
 
         about = self.about()
@@ -450,8 +522,8 @@ class SignalCliRestApi(object):
                 
         Args:
             reaction (str): Reaction. Must be an Emoji.
-            recipient (str): Message recipient. Eg: +15555555555
-            timestamp (int): The timestamp of the target message (the message you want to react to).
+            recipient (str): Message recipient. Eg: +15555555555, or group ID.
+            timestamp (int): Message timestamp to add reaction to.
             target_author (str, optional): The target message author. If not provided, recipient will be used.
 
         Returns:
@@ -464,15 +536,15 @@ class SignalCliRestApi(object):
         
         self._requester(method='post', url=url, data=data, successCode=204, errorUnknown='while adding reaction', errorCouldnt='add reaction')
     
-    def delete_reaction(self, recipient:str, timestamp:int, target_author:str=None): #TODO add docstring
+    def delete_reaction(self, recipient:str, timestamp:int, target_author:str=None): #TODO if groupID is sent with no recipient ID, throw an error
         """Delete (remove) a reaction to a message. Uses timestamp to identify the message.
         
         Warning! Data in timestamp field is not validated and will not return an error, even if it is wrong.  This includes trying to remove a reaction that does not exist.
                 
         Args:
-            recipient (str): Message recipient. Eg: +15555555555
-            timestamp (int): The timestamp of the target message (the message you want to remove the reaction from).
-            target_author (str, optional): The target message author. If not provided, recipient will be used.
+            recipient (str): Message recipient. Eg: +15555555555, or group ID.
+            timestamp (int): Message timestamp to remove reaction from.
+            target_author (str, optional): The target message author. If not provided, recipient will be used. 
 
         Returns:
             Nothing is returned.
@@ -548,7 +620,7 @@ class SignalCliRestApi(object):
             raise_from(SignalCliRestApiError("Couldn't search for phone numbers: "), exc)
             
     def get_contacts(self):
-        """Get all Signal contacts.
+        """Get all Signal contacts for your account.
 
         Returns:
             list: List of contacts.
@@ -559,7 +631,7 @@ class SignalCliRestApi(object):
         return request.json()
     
     def update_contact(self, contact:str, name:str=None, expiration_in_seconds:int=None):
-        """Update a signal Contact. Only works if run as the main device, will not work if linked.
+        """Update a signal Contact.  Must be the main device.  If you linked your account to SignalCli via a QR code, this won't work.
 
         Args:
             contact (str): Contact number to update.
@@ -573,4 +645,57 @@ class SignalCliRestApi(object):
         request = self._requester(method='put', url=url, data=data, successCode=204, errorUnknown='while updating profile', errorCouldnt='update profile')
         return request.json()
     
+    def sync_contacts(self):
+        """Send a synchronization message with the local contacts list to all linked devices. This command should only be used if this is the primary device.
+        """
+        
+        url = self._base_url + "/v1/contacts/" + self._number +'/sync'
+        self._requester(method='post', url=url, successCode=204, errorUnknown='while updating profile', errorCouldnt='update profile')
+    
+    def send_receipt(self, recipient:str, timestamp:int, receipt_type:str='read'):
+        """Mark a message as read or viewed.
+
+        Args:
+            recipient (str): _Message recipient. Eg: +15555555555, or group ID.
+            timestamp (int): Message timestamp to mark as read/viewed.
+            receipt_type (str, optional): Receipt type.  Can be 'read' or 'viewed'. Defaults to 'read'.
+        """
+        
+        rawParams = locals().copy()
+        url = self._base_url + "/v1/receipts/" + self._number
+        data = self._formatParams(rawParams)
+        
+        request = self._requester(method='post', url=url, data=data, successCode=204, errorUnknown='while sending receipt', errorCouldnt='send receipt')
+        #return request.json() #TODO confirm if this returns anything
+        
+    def list_indentities(self):
+        """List all identities for your Signal account.
+        
+        Order of identities may change between calls
+
+        Returns:
+            list: List of identities.
+        """
+
+        url = self._base_url + "/v1/identities/" + self._number
+        
+        request = self._requester(method='get', url=url, successCode=200, errorUnknown='getting identities', errorCouldnt='get identities')
+        return request.json()
+    
+    def verify_indentity(self, number_to_trust:str, verified_safety_number:str, trust_all_known_keys:bool=False):
+        """Verify/Trust an identity.
+
+        Args:
+            number_to_trust (str): Number to mark as verified/trusted.
+            verified_safety_number (str): Safety number of identity.  Can be gotten from list_identities()
+            trust_all_known_keys (bool, optional): If set to True, all known keys of this user are trusted.  Only recommended for testing!  Defaults to False.
+        """
+        
+        rawParams = locals().copy()
+        url = self._base_url + "/v1/identities/" + self._number +'/trust/' + number_to_trust
+        data = self._formatParams(rawParams, endpoint='verify_indentity')
+        
+        request = self._requester(method='put', url=url, data=data, successCode=204, errorUnknown='while verifying identity', errorCouldnt='verify identity')
+        
+        pass
     
