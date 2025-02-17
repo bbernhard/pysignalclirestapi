@@ -65,8 +65,8 @@ No accounts endpoints have been added.
 ### Attachments
 | Service | Status | Function Name | Description |
 | --- | --- | --- | --- |
-| attachments | Working* | list_attachments() | Converted to use my sender, seems fine as far as I can tell. |
-| GET attachment | Working | get_attachment() | Haven't touched |
+| attachments | Working | list_attachments() | Converted to new sender |
+| GET attachment | Working | get_attachment() | Converted to new sender |
 | DELETE attachment | Working | delete_attachment() | Haven't touched |
 
 ### Profiles

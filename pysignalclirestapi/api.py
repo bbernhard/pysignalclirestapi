@@ -409,7 +409,7 @@ class SignalCliRestApi(object):
             message (str): Message.
             recipients (list): Recipient(s).
             filenames (str, optional): Filename(s) to be sent.
-            attachments_as_bytes (list, optional): Attachment(s) in base64.
+            attachments_as_bytes (list, optional): Attachment(s) in bytes format (inside a list).
             mentions (list, optional): Mention another user. See formatting below.
             quote_timestamp (int, optional): Timestamp of qouted message.
             quote_author (str, optional): The quoted message author.
@@ -557,15 +557,30 @@ class SignalCliRestApi(object):
         self._requester(method='delete', url=url, data=data, successCode=204, errorUnknown='while removing reaction', errorCouldnt='remove reaction')
     
     def list_attachments(self):
-        """List all downloaded attachments."""
+        """Get a list of all files (attachments) in Signal's media folder.
+
+        Returns:
+            list: List of files.
+        """
         url = self._base_url + "/v1/attachments"
         
         request = self._requester(method='get', url=url, successCode=200, errorUnknown='while listing attachments', errorCouldnt='list attachments')
         return request.json()
 
-    def get_attachment(self, attachment_id):
-        """Serve the attachment with the given id."""
+    def get_attachment(self, attachment_id:str):
+        """Get a signal file (attachment) in bytes.
 
+        Args:
+            attachment_id (str): File (attachment) name.
+
+
+        Returns:
+            bytes: Attachment in bytes.
+        """
+        url = self._base_url + "/v1/attachments/" + attachment_id
+        request = self._requester(method='get', url=url, successCode=200, errorUnknown='while getting attachment', errorCouldnt='get attachment')
+        return request.content
+    
         try:
             url = self._base_url + "/v1/attachments/" + attachment_id
 
@@ -583,7 +598,11 @@ class SignalCliRestApi(object):
             raise_from(SignalCliRestApiError("Couldn't get attachment: "), exc)
 
     def delete_attachment(self, attachment_id):
-        """Remove the attachment with the given id from filesystem."""
+        """Delete file (attachment) from filesystem
+
+        Args:
+            attachment_id (str): File (attachment) name.
+        """
 
         try:
             url = self._base_url + "/v1/attachments/" + attachment_id
