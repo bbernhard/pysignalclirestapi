@@ -298,7 +298,7 @@ class SignalCliRestApi(object):
         url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/join'
         #TODO if success is not clear, add an additional call to get_group() and return the details
         request = self._requester(method='post', url=url, successCode=204, errorUnknown='while joining Signal Messenger group', errorCouldnt='join Signal Messenger group')
-        return request.json()
+        #return request.json()
     
     def leave_group(self, groupid:str):
         """Leave a Signal group.
@@ -309,7 +309,7 @@ class SignalCliRestApi(object):
         url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/quit'
         
         request = self._requester(method='post', url=url, successCode=204, errorUnknown='while leaving Signal Messenger group', errorCouldnt='leave Signal Messenger group')
-        return request.json()
+        #return request.json()
     
     def block_group(self, groupid:str):
         """Block a Signal group.
@@ -320,7 +320,7 @@ class SignalCliRestApi(object):
         url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/block'
         
         request = self._requester(method='post', url=url, successCode=204, errorUnknown='while blocking Signal Messenger group', errorCouldnt='block Signal Messenger group')
-        return request.json()
+        #return request.json()
     
     def add_group_members(self, groupid:str, members:list):
         """Add user(s) (members) to a Signal group.
