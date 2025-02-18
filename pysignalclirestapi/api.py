@@ -66,16 +66,50 @@ class SignalCliRestApi(object):
         params.pop('self')
         # Create a JSON query object
         formattedData = {}
+        about = self.about()
+        api_versions = about["versions"]
         for item, value in params.items(): # Check params, add anything that isn't blank to the query
             if value !=None:
                 # Allow conditional formatting, depending on the endpoint
                 if endpoint in ['receive']:
                     value = 'true' if value is True else 'false' if value is False else value # Convert bool to string
-                    
+                
+                elif endpoint in ['send_message']:
+                    if "v2" in api_versions:
+                        if item == 'attachments_as_bytes':
+                            value = [
+                                bytes_to_base64(attachment) for attachment in value
+                            ]
+                            item = 'base64_attachments'
+
+                        elif item == 'filenames':
+                            attachments = []
+                            for filename in value:
+                                with open(filename, "rb") as ofile:
+                                    base64_attachment = bytes_to_base64(ofile.read())
+                                    attachments.append(base64_attachment)
+                            value = attachments
+                            item = 'base64_attachments'
+                    else:  # fall back to api version 1 to stay downwards compatible
+                        if item == 'filenames' and len(value) == 1:
+                            with open(value[0], "rb") as ofile:
+                                base64_attachment = bytes_to_base64(ofile.read())
+                                attachment = base64_attachment
+                            value = attachment
+                            item = 'base64_attachments'
+                   
                 elif endpoint in ['update_contact']:
                     item = 'recipient' if item == 'contact' else item # Rename contact to recipient
-                elif endpoint in ['update_group', 'update_profile'] and item in ['ofile','filename']: # Skip raw attachment data
-                    continue
+                
+                elif endpoint in ['update_group', 'update_profile']: # Format attachments
+                    if item == 'filename':
+                        with open(value, "rb") as ofile:
+                            value = bytes_to_base64(ofile.read())
+                        item = 'base64_avatar'
+                    elif item == 'attachment_as_bytes':
+                        value = bytes_to_base64(value)
+                        item = 'base64_avatar'
+                
                 elif endpoint in ['verify_indentity'] and item in ['number_to_trust']: # Skip trusted number as it is added to URL.
                     continue
                 
@@ -222,26 +256,28 @@ class SignalCliRestApi(object):
         request = self._requester(method='get', url=url, successCode=200, errorUnknown='while getting Signal Messenger group', errorCouldnt='get Signal Messenger group')
         return request.json()
     
-    def update_group(self, groupid:str, name:str=None, description:str=None, expiration_time:int=None, filename:str=None): #TODO look into rate limiting, maybe thats why it has so much trouble sending
-        """Update a signal group.  Group icon (image) capability may not be working.
-
+    def update_group(self, groupid:str, name:str=None, description:str=None, expiration_time:int=None, filename:str=None, attachment_as_bytes:str=None): #TODO look into rate limiting, maybe thats why it has so much trouble sending
+        """Update a signal group.
+        
+        Use filename OR attachment_as_bytes, not both!
+        
         Args:
             groupid (str): Signal group ID.
             name (str, optional): Updated group name.
             description (str, optional): Updated group description.
             expiration_time (int, optional): Disappearing Messages expiration in seconds. Defaults to None (disabled).
             filename (str, optional): Filename of new profile image.
+            attachment_as_bytes (str, optional): Attachment(s) in bytes format.
         """
-        if filename is not None:
-            with open(filename, "rb") as ofile:
-                base64_avatar = bytes_to_base64(ofile.read())
-
         rawParams = locals().copy()
+        if filename is not None and attachment_as_bytes is not None:
+            raise_from(SignalCliRestApiError(f"Can't use filename and attachment_as_bytes, please only send one"))
+        
         url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid)
-        data = self._formatParams(rawParams,'update_group')
+        data = self._formatParams(rawParams, 'update_group')
         # TODO add some sort of confirmation for the user
         request = self._requester(method='put', url=url ,data=data, successCode=204, errorUnknown='while updating Signal Messenger group', errorCouldnt='update Signal Messenger group')
-    
+        #return request
     def delete_group(self, groupid:str):
         """Delete a Signal group.
 
@@ -369,41 +405,32 @@ class SignalCliRestApi(object):
         request = self._requester(method='get', url=url, data=data, successCode=200, errorUnknown='while receiving Signal Messenger data', errorCouldnt='receive Signal Messenger data')
         return request.json()
 
-    def update_profile(self, name, filename=None):
-        """Update Profile.
+    def update_profile(self, name:str, filename:str=None, attachment_as_bytes:str=None):
+        """Update Signal profile.
 
-        Set the name and optionally an avatar.
+        Use filename OR attachment_as_bytes, not both!
+        
+        Args:
+            name (str, optional): New profile name.
+            filename (str, optional): Filename of new avatar.
+            attachment_as_bytes (str, optional): Attachment(s) in bytes format.
         """
+        rawParams = locals().copy()
+        if filename is not None and attachment_as_bytes is not None:
+            raise_from(SignalCliRestApiError(f"Can't use filename and attachment_as_bytes, please only send one"))
+        
+        url = self._base_url + "/v1/profiles/" + self._number
+        data = self._formatParams(rawParams, 'update_group')
+        # TODO add some sort of confirmation for the user
+        request = self._requester(method='put', url=url ,data=data, successCode=204, errorUnknown='while updating profile', errorCouldnt='update profile')
+        #return request
 
-        try:
-            url = self._base_url + "/v1/profiles/" + self._number
-            data = {
-                "name": name
-            }
-
-            if filename is not None:
-                with open(filename, "rb") as ofile:
-                    base64_avatar = bytes_to_base64(ofile.read())
-                    data["base64_avatar"] = base64_avatar
-
-            resp = requests.put(url, json=data, auth=self._auth, verify=self._verify_ssl)
-            if resp.status_code != 204:
-                json_resp = resp.json()
-                if "error" in json_resp:
-                    raise SignalCliRestApiError(json_resp["error"])
-                raise SignalCliRestApiError(
-                    "Unknown error while updating profile")
-        except Exception as exc:
-            if exc.__class__ == SignalCliRestApiError:
-                raise exc
-            raise_from(SignalCliRestApiError("Couldn't update profile: "), exc)
-
-    def send_message(self, message:str, recipients:list, filenames=None, attachments_as_bytes=None,
-                     mentions=None, quote_timestamp=None, quote_author=None, quote_message=None,
-                     quote_mentions=None, text_mode="normal"):
+    def send_message(self, message:str, recipients:list, filenames=None, attachments_as_bytes:list=None,
+                     mentions:list=None, quote_timestamp:int=None, quote_author:str=None, quote_message:str=None,
+                     quote_mentions:list=None, text_mode="normal"):
         """Send a message to one (or more) recipients.
         
-        Supports attachments, styled text, mentioning, and quoting
+        Supports attachments, styled text, mentioning, and quoting if using V2.
         
         Args:
             message (str): Message.
@@ -432,15 +459,19 @@ class SignalCliRestApi(object):
         Returns:
             dict: Sent message timestamp.
         """
-
-        about = self.about()
-
-        api_versions = about["versions"]
-
-        endpoint = "v2/send"
+        if isinstance(recipients,str): # If sending "recipients" in data, recipients must be sent as a list, even it is a single recipient.
+            recipients = [recipients]
+        number = self._number
+        
+        rawParams = locals().copy()
         # fall back to old api version to stay downwards compatible.
+        about = self.about()
+        api_versions = about["versions"]
+        endpoint = "v2/send"
         if "v2" not in api_versions:
             endpoint = "v1/send"
+            
+        url = f"{self._base_url}/{endpoint}"
 
         if filenames is not None and len(filenames) > 1:
             if "v2" not in api_versions:  # multiple attachments only allowed when api version >= v2
@@ -453,11 +484,12 @@ class SignalCliRestApi(object):
             raise SignalCliRestApiError(
                 "This signal-cli-rest-api version is not capable of sending quotes. Please upgrade your signal-cli-rest-api docker container!")
         
-        url = f"{self._base_url}/{endpoint}"
 
-        if isinstance(recipients,str): # If sending "recipients" in data, recipients must be sent as a list, even it is a single recipient.
-            recipients = [recipients]
-        
+        data = self._formatParams(rawParams, endpoint='send_message')
+        response = self._requester(method='post', url=url, data=data, successCode=201, errorUnknown='while sending message', errorCouldnt='send message')
+        return json.loads(response.content)
+    
+    
         data = {
             "message": message,
             "number": self._number,
@@ -477,6 +509,8 @@ class SignalCliRestApi(object):
 
         if "v2" in api_versions:
             data["text_mode"] = text_mode
+        
+        
 
         try:
             if "v2" in api_versions:
@@ -580,22 +614,6 @@ class SignalCliRestApi(object):
         url = self._base_url + "/v1/attachments/" + attachment_id
         request = self._requester(method='get', url=url, successCode=200, errorUnknown='while getting attachment', errorCouldnt='get attachment')
         return request.content
-    
-        try:
-            url = self._base_url + "/v1/attachments/" + attachment_id
-
-            resp = requests.get(url, auth=self._auth, verify=self._verify_ssl)
-            if resp.status_code != 200:
-                json_resp = resp.json()
-                if "error" in json_resp:
-                    raise SignalCliRestApiError(json_resp["error"])
-                raise SignalCliRestApiError("Unknown error while getting attachment")
-
-            return resp.content
-        except Exception as exc:
-            if exc.__class__ == SignalCliRestApiError:
-                raise exc
-            raise_from(SignalCliRestApiError("Couldn't get attachment: "), exc)
 
     def delete_attachment(self, attachment_id):
         """Delete file (attachment) from filesystem
@@ -715,6 +733,3 @@ class SignalCliRestApi(object):
         data = self._formatParams(rawParams, endpoint='verify_indentity')
         
         request = self._requester(method='put', url=url, data=data, successCode=204, errorUnknown='while verifying identity', errorCouldnt='verify identity')
-        
-        pass
-    

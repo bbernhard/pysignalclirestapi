@@ -45,8 +45,8 @@ No accounts endpoints have been added.
 | --- | --- | --- | --- |
 | GET groups | Working | list_groups() |  |
 | POST groups | In Progress | create_group() | Have not run into any issues yet |
-| GET group | In Progress | get_group() | Want to try messing with the group IDs to see how it reacts |
-| PUT group | Partially Working | update_group() | Images are accepted but do not always appear |
+| GET group | Working | get_group() | Want to try messing with the group IDs to see how it reacts |
+| PUT group | Working | update_group() | Images now work |
 | DELETE group | In Progress | delete_group() | Need to try deleting a group that I do not own |
 | POST group admins | In Progress | add_group_admins() | Need to try different number types and formats |
 | DELETE group admins | In Progress | remove_group_admins() | Need to try different number types and formats |
@@ -72,7 +72,7 @@ No accounts endpoints have been added.
 ### Profiles
 | Service | Status | Function Name | Description |
 | --- | --- | --- | --- |
-| profiles | Working | update_profile | Haven't touched |
+| profiles | Testing | update_profile | Converted to new sender, no issues yet |
 
 ### Identities
 | Service | Status | Function Name | Description |
