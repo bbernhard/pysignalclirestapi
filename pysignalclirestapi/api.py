@@ -55,6 +55,23 @@ class SignalCliRestApi(object):
             return resp.json()
         return None
 
+    def link(self, device_name) -> bytes:
+        # returns png file
+        try:
+            resp = requests.get(self._base_url + "/v1/qrcodelink", params={"device_name": device_name})
+            resp.raise_for_status()
+            return resp.content
+        except Exception as exc:
+            raise_from(SignalCliRestApiError(f"Could not link device: {exc}"), exc)
+
+    def get_accounts(self) -> [str]:
+        try:
+            resp = requests.get(self._base_url + "/v1/accounts")
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as exc:
+            raise_from(SignalCliRestApiError(f"Could not get accounts: {exc}"), exc)
+
     def api_info(self):
         try:
             data = self.about()
