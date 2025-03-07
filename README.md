@@ -81,14 +81,13 @@ No accounts endpoints have been added.
 ### Reactions
 | Service | Status | Function Name | Description |
 | --- | --- | --- | --- |
-| POST reaction | Working | send_reaction() |  |
-| DELETE reaction | Working | delete_reaction() |  |
-Maybe the methods here should be "add" and "remove" instead of "send" and "delete"?
+| POST reaction | Working | add_reaction() |  |
+| DELETE reaction | Working | remove_reaction() |  |
 
 ### Receipts
 | Service | Status | Function Name | Description |
 | --- | --- | --- | --- |
-| receipts | In Progress | send_receipt() | Not clear to me what viewed vs read does |
+| receipts | In Progress | send_receipt() |  |
 ### Search
 | Service | Status | Function Name | Description |
 | --- | --- | --- | --- |
