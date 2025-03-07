@@ -61,9 +61,7 @@ class SignalCliRestApi(object):
         Returns:
             list: Formatted params/data
         """
-        formattedData = {}
-        
-        params.pop('self')
+
         # Create a JSON query object
         formattedData = {}
         about = self.about()
@@ -97,9 +95,6 @@ class SignalCliRestApi(object):
                                 attachment = base64_attachment
                             value = attachment
                             item = 'base64_attachments'
-                   
-                elif endpoint in ['update_contact']:
-                    item = 'recipient' if item == 'contact' else item # Rename contact to recipient
                 
                 elif endpoint in ['update_group', 'update_profile']: # Format attachments
                     if item == 'filename':
@@ -109,9 +104,6 @@ class SignalCliRestApi(object):
                     elif item == 'attachment_as_bytes':
                         value = bytes_to_base64(value)
                         item = 'base64_avatar'
-                
-                elif endpoint in ['verify_indentity'] and item in ['number_to_trust']: # Skip trusted number as it is added to URL.
-                    continue
                 
                 formattedData.update({item : value})
         
@@ -221,10 +213,15 @@ class SignalCliRestApi(object):
             _type_: Group ID.
         """
         members = [members] if isinstance(members, str) else members
-        rawParams = locals().copy()
+        params = {'name': name,
+                  'members': members,
+                  'description': description,
+                  'expiration_time': expiration_time,
+                  'group_link': group_link,
+                  'permissions': permissions}
         
         url = self._base_url + "/v1/groups/" + self._number
-        data = self._formatParams(rawParams)
+        data = self._formatParams(params)
         #TODO confirm whether 200 is ever returned
         request = self._requester(method='post', url=url, data=data, successCode=[201,200], errorUnknown='while creating Signal Messenger group', errorCouldnt='create Signal Messenger group')
         return request.json()
@@ -269,12 +266,18 @@ class SignalCliRestApi(object):
             filename (str, optional): Filename of new profile image.
             attachment_as_bytes (str, optional): Attachment(s) in bytes format.
         """
-        rawParams = locals().copy()
+        params = {'groupid': groupid,
+                  'name': name,
+                  'description': description,
+                  'expiration_time': expiration_time,
+                  'filename': filename,
+                  'attachment_as_bytes': attachment_as_bytes,}
+        
         if filename is not None and attachment_as_bytes is not None:
             raise_from(SignalCliRestApiError(f"Can't use filename and attachment_as_bytes, please only send one"))
         
         url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid)
-        data = self._formatParams(rawParams, 'update_group')
+        data = self._formatParams(params, 'update_group')
         # TODO add some sort of confirmation for the user
         request = self._requester(method='put', url=url ,data=data, successCode=204, errorUnknown='while updating Signal Messenger group', errorCouldnt='update Signal Messenger group')
         #return request
@@ -331,9 +334,11 @@ class SignalCliRestApi(object):
         """
         members = [members] if isinstance(members,str) else members # Listify! #TODO could this be moved to the data formatter
         
-        rawParams = locals().copy()
+        params = {'groupid': groupid,
+                  'members': members}
+        
         url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/members'
-        data = self._formatParams(rawParams)
+        data = self._formatParams(params)
         
         request = self._requester(method='post', url=url, data=data, successCode=204, errorUnknown='while adding members to Signal Messenger group', errorCouldnt='add members to Signal Messenger group')
         #TODO add some sort of response?
@@ -347,9 +352,11 @@ class SignalCliRestApi(object):
         """
         members = [members] if isinstance(members, str) else members # Listify! #TODO could this be moved to the data formatter
         
-        rawParams = locals().copy()
+        params = {'groupid': groupid,
+                  'members': members}
+        
         url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/members'
-        data = self._formatParams(rawParams)
+        data = self._formatParams(params)
         
         request = self._requester(method='delete', url=url, data=data, successCode=204, errorUnknown='while removing members from Signal Messenger group', errorCouldnt='remove members from Signal Messenger group')
             
@@ -362,9 +369,11 @@ class SignalCliRestApi(object):
         """
         admins = [admins] if isinstance(admins, str) else admins # Listify! #TODO could this be moved to the data formatter
         
-        rawParams = locals().copy()
+        params = {'groupid': groupid,
+                  'admins': admins}
+        
         url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/admins'
-        data = self._formatParams(rawParams)
+        data = self._formatParams(params)
         
         request = self._requester(method='post', url=url, data=data, successCode=204, errorUnknown='while adding admins to Signal Messenger group', errorCouldnt='add admins to Signal Messenger group')
     
@@ -377,9 +386,11 @@ class SignalCliRestApi(object):
         """
         admins = [admins] if isinstance(admins, str) else admins # Listify! #TODO could this be moved to the data formatter
         
-        rawParams = locals().copy()
+        params = {'groupid': groupid,
+                  'admins': admins}
+        
         url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/admins'
-        data = self._formatParams(rawParams)
+        data = self._formatParams(params)
         
         request = self._requester(method='delete', url=url, data=data, successCode=204, errorUnknown='while removing admins from Signal Messenger group', errorCouldnt='remove admins from Signal Messenger group')
 
@@ -398,9 +409,14 @@ class SignalCliRestApi(object):
         Returns:
             list: List of messages
         """
-        rawParams = locals().copy()
+        params = {'ignore_attachments': ignore_attachments,
+                  'ignore_stories': ignore_stories,
+                  'send_read_receipts': send_read_receipts,
+                  'max_messages': max_messages,
+                  'timeout': timeout}
+        
         url = self._base_url + "/v1/receive/" + self._number
-        data = self._formatParams(params=rawParams, endpoint='receive')
+        data = self._formatParams(params=params, endpoint='receive')
         
         request = self._requester(method='get', url=url, data=data, successCode=200, errorUnknown='while receiving Signal Messenger data', errorCouldnt='receive Signal Messenger data')
         return request.json()
@@ -415,12 +431,15 @@ class SignalCliRestApi(object):
             filename (str, optional): Filename of new avatar.
             attachment_as_bytes (str, optional): Attachment(s) in bytes format.
         """
-        rawParams = locals().copy()
+        params = {'name': name,
+                  'filename':filename,
+                  'attachment_as_bytes': attachment_as_bytes}
+        
         if filename is not None and attachment_as_bytes is not None:
             raise_from(SignalCliRestApiError(f"Can't use filename and attachment_as_bytes, please only send one"))
         
         url = self._base_url + "/v1/profiles/" + self._number
-        data = self._formatParams(rawParams, 'update_group')
+        data = self._formatParams(params, 'update_group')
         # TODO add some sort of confirmation for the user
         request = self._requester(method='put', url=url ,data=data, successCode=204, errorUnknown='while updating profile', errorCouldnt='update profile')
         #return request
@@ -463,7 +482,17 @@ class SignalCliRestApi(object):
             recipients = [recipients]
         number = self._number
         
-        rawParams = locals().copy()
+        params = {'message': message,
+                  'recipients':recipients,
+                  'filenames': filenames,
+                  'attachments_as_bytes': attachments_as_bytes,
+                  'mentions': mentions,
+                  'quote_timestamp': quote_timestamp,
+                  'quote_author': quote_author,
+                  'quote_message': quote_message,
+                  'quote_mentions': quote_mentions,
+                  'text_mode':text_mode}
+        
         # fall back to old api version to stay downwards compatible.
         about = self.about()
         api_versions = about["versions"]
@@ -471,7 +500,7 @@ class SignalCliRestApi(object):
         if "v2" not in api_versions:
             endpoint = "v1/send"
             
-        url = f"{self._base_url}/{endpoint}"
+        url =  self._base_url + f'/{endpoint}'
 
         if filenames is not None and len(filenames) > 1:
             if "v2" not in api_versions:  # multiple attachments only allowed when api version >= v2
@@ -485,67 +514,9 @@ class SignalCliRestApi(object):
                 "This signal-cli-rest-api version is not capable of sending quotes. Please upgrade your signal-cli-rest-api docker container!")
         
 
-        data = self._formatParams(rawParams, endpoint='send_message')
+        data = self._formatParams(params, endpoint='send_message')
         response = self._requester(method='post', url=url, data=data, successCode=201, errorUnknown='while sending message', errorCouldnt='send message')
         return json.loads(response.content)
-    
-    
-        data = {
-            "message": message,
-            "number": self._number,
-            "recipients": recipients,
-        }
-        #TODO could this all use the _formatter
-        if mentions:
-            data["mentions"] = mentions
-        if quote_timestamp:
-            data["quote_timestamp"] = quote_timestamp
-        if quote_author:
-            data["quote_author"] = quote_author
-        if quote_message:
-            data["quote_message"] = quote_message
-        if quote_mentions:
-            data["quote_mentions"] = quote_mentions
-
-        if "v2" in api_versions:
-            data["text_mode"] = text_mode
-        
-        
-
-        try:
-            if "v2" in api_versions:
-                if attachments_as_bytes is None:
-                    base64_attachments = []
-                else:
-                    base64_attachments = [
-                        bytes_to_base64(attachment) for attachment in attachments_as_bytes
-                    ]
-                if filenames is not None:
-                    for filename in filenames:
-                        with open(filename, "rb") as ofile:
-                            base64_attachment = bytes_to_base64(ofile.read())
-                            base64_attachments.append(base64_attachment)
-                data["base64_attachments"] = base64_attachments
-            else:  # fall back to api version 1 to stay downwards compatible
-                if filenames is not None and len(filenames) == 1:
-                    with open(filenames[0], "rb") as ofile:
-                        base64_attachment = bytes_to_base64(ofile.read())
-                        data["base64_attachment"] = base64_attachment
-
-            resp = requests.post(url, json=data, auth=self._auth, verify=self._verify_ssl)
-            if resp.status_code != 201:
-                json_resp = resp.json()
-                if "error" in json_resp:
-                    raise SignalCliRestApiError(json_resp["error"])
-                raise SignalCliRestApiError(
-                    "Unknown error while sending signal message")
-            else:
-                return json.loads(resp.content)
-        except Exception as exc:
-            if exc.__class__ == SignalCliRestApiError:
-                raise exc
-            raise_from(SignalCliRestApiError(
-                "Couldn't send signal message"), exc)
     
     def send_reaction(self, reaction:str, recipient:str, timestamp:int, target_author:str=None):
         """Send (add) a reaction to a message. Uses timestamp to identify the message to react to.
@@ -563,10 +534,16 @@ class SignalCliRestApi(object):
         Returns:
             Nothing is returned.
         """
+        # If target author isn't provided, default to recipient
         target_author = target_author if target_author else recipient
-        rawParams = locals().copy()
+        
+        params = {'reaction': reaction,
+                  'recipient': recipient,
+                  'timestamp': timestamp,
+                  'target_author': target_author}
+        
         url = self._base_url + "/v1/reactions/" + self._number
-        data = self._formatParams(rawParams)
+        data = self._formatParams(params)
         
         self._requester(method='post', url=url, data=data, successCode=204, errorUnknown='while adding reaction', errorCouldnt='add reaction')
     
@@ -584,9 +561,13 @@ class SignalCliRestApi(object):
             Nothing is returned.
         """
         target_author = target_author if target_author else recipient
-        rawParams = locals().copy()
+        
+        params = {'recipient': recipient,
+                  'timestamp': timestamp,
+                  'target_author': target_author}
+        
         url = self._base_url + "/v1/reactions/" + self._number
-        data = self._formatParams(rawParams)
+        data = self._formatParams(params)
         
         self._requester(method='delete', url=url, data=data, successCode=204, errorUnknown='while removing reaction', errorCouldnt='remove reaction')
     
@@ -675,9 +656,12 @@ class SignalCliRestApi(object):
             name (str, optional): Contact name. Defaults to None.
             expiration_in_seconds (int, optional): Disappearing Messages expiration in seconds. Defaults to None (disabled).
         """
-        rawParams = locals().copy()
+        params = {'recipient': contact, # Field is actually named recipient, but I think it makes more sense to cal it contact
+                  'name': name,
+                  'expiration_in_seconds': expiration_in_seconds}
+        
         url = self._base_url + "/v1/contacts/" + self._number
-        data = self._formatParams(rawParams, endpoint='update_contact')
+        data = self._formatParams(params)
         
         request = self._requester(method='put', url=url, data=data, successCode=204, errorUnknown='while updating profile', errorCouldnt='update profile')
         return request.json()
@@ -698,9 +682,11 @@ class SignalCliRestApi(object):
             receipt_type (str, optional): Receipt type.  Can be 'read' or 'viewed'. Defaults to 'read'.
         """
         
-        rawParams = locals().copy()
+        params = {'recipient': recipient,
+                  'timestamp': timestamp,
+                  'receipt_type': receipt_type}
         url = self._base_url + "/v1/receipts/" + self._number
-        data = self._formatParams(rawParams)
+        data = self._formatParams(params)
         
         request = self._requester(method='post', url=url, data=data, successCode=204, errorUnknown='while sending receipt', errorCouldnt='send receipt')
         #return request.json() #TODO confirm if this returns anything
@@ -728,8 +714,9 @@ class SignalCliRestApi(object):
             trust_all_known_keys (bool, optional): If set to True, all known keys of this user are trusted.  Only recommended for testing!  Defaults to False.
         """
         
-        rawParams = locals().copy()
+        params = {'verified_safety_number': verified_safety_number,
+                  'trust_all_known_keys': trust_all_known_keys}
         url = self._base_url + "/v1/identities/" + self._number +'/trust/' + number_to_trust
-        data = self._formatParams(rawParams, endpoint='verify_indentity')
+        data = self._formatParams(params)
         
         request = self._requester(method='put', url=url, data=data, successCode=204, errorUnknown='while verifying identity', errorCouldnt='verify identity')
