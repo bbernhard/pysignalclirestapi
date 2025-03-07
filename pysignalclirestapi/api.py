@@ -144,8 +144,12 @@ class SignalCliRestApi(object):
             list: List of messages
         """
         
-        rawParams = locals().copy()
-        rawParams.pop('self')
+        rawParams = {'ignore_attachments': ignore_attachments, 
+                     'ignore_stories': ignore_stories, 
+                     'send_read_receipts': send_read_receipts, 
+                     'max_messages': max_messages, 
+                     'timeout': timeout}
+        
         # Create a JSON query object
         formattedData = {}
         for item, value in rawParams.items(): # Check params, add anything that isn't blank to the query
