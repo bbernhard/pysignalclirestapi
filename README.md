@@ -1,5 +1,3 @@
-Forked from: https://github.com/bbernhard/pysignalclirestapi.  Planning to try and merge back once I've finished adding and testing everything!
-
 Small python library for the [Signal Cli REST API](https://github.com/bbernhard/signal-cli-rest-api)
 
 ### Quickstart
