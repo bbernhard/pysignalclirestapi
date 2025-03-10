@@ -66,6 +66,7 @@ class SignalCliRestApi(object):
         formatted_data = {}
         about = self.about()
         api_versions = about["versions"]
+        
         for item, value in params.items(): # Check params, add anything that isn't blank to the query
             if value !=None:
                 # Allow conditional formatting, depending on the endpoint
@@ -150,17 +151,18 @@ class SignalCliRestApi(object):
             raise_from(SignalCliRestApiError(f"Couldn't {error_couldnt}: "), exc)
         
     def about(self):
-        """Get general information about the API.
+        """Get general API information including capabilities, API version, and what mode is being used.
 
         Returns:
-            dict: API details.
+            dict: API information.
         """
+        
         resp = requests.get(self._base_url + "/v1/about", auth=self._auth, verify=self._verify_ssl)
         if resp.status_code == 200:
             return resp.json()
         return None
 
-    def api_info(self):
+    def api_info(self): #TODO should this be removed?
         try:
             data = self.about()
             if data is None:
@@ -210,7 +212,7 @@ class SignalCliRestApi(object):
             edit_group (str): Whether group members can edit (update) the group.  Options are 'only-admins', 'every-member'.  Defaults to 'only-admins'.
 
         Returns:
-            _type_: Group ID.
+            dict: Group ID.
         """
         members = [members] if isinstance(members, str) else members
         params = {'name': name,
@@ -253,7 +255,7 @@ class SignalCliRestApi(object):
         request = self._requester(method='get', url=url, success_code=200, error_unknown='while getting Signal Messenger group', error_couldnt='get Signal Messenger group')
         return request.json()
     
-    def update_group(self, groupid:str, name:str=None, description:str=None, expiration_time:int=None, filename:str=None, attachment_as_bytes:str=None): #TODO look into rate limiting, maybe thats why it has so much trouble sending
+    def update_group(self, groupid:str, name:str=None, description:str=None, expiration_time:int=None, filename:str=None, attachment_as_bytes:str=None):
         """Update a signal group.
         
         Use filename OR attachment_as_bytes, not both!
@@ -444,7 +446,7 @@ class SignalCliRestApi(object):
         request = self._requester(method='put', url=url ,data=data, success_code=204, error_unknown='while updating profile', error_couldnt='update profile')
         #return request
 
-    def send_message(self, message:str, recipients:list, filenames=None, attachments_as_bytes:list=None,
+    def send_message(self, message:str, recipients:list, notify_self:bool=False, filenames=None, attachments_as_bytes:list=None,
                      mentions:list=None, quote_timestamp:int=None, quote_author:str=None, quote_message:str=None,
                      quote_mentions:list=None, text_mode="normal"):
         """Send a message to one (or more) recipients.
@@ -454,6 +456,7 @@ class SignalCliRestApi(object):
         Args:
             message (str): Message.
             recipients (list): Recipient(s).
+            notify_self (bool, optional): Requires API version 0.92+.  If set to Ture, other devices linked to the same account will get a notification for messages you send. Defaults to False (no notification).
             filenames (str, optional): Filename(s) to be sent.
             attachments_as_bytes (list, optional): Attachment(s) in bytes format (inside a list).
             mentions (list, optional): Mention another user. See formatting below.
@@ -484,6 +487,7 @@ class SignalCliRestApi(object):
         
         params = {'message': message,
                   'recipients':recipients,
+                  'notify_self': notify_self,
                   'filenames': filenames,
                   'attachments_as_bytes': attachments_as_bytes,
                   'mentions': mentions,
@@ -593,6 +597,7 @@ class SignalCliRestApi(object):
             bytes: Attachment in bytes.
         """
         url = self._base_url + "/v1/attachments/" + attachment_id
+        
         request = self._requester(method='get', url=url, success_code=200, error_unknown='while getting attachment', error_couldnt='get attachment')
         return request.content
 
@@ -682,7 +687,7 @@ class SignalCliRestApi(object):
         Args:
             recipient (str): _Message recipient. Eg: +15555555555, or group ID.
             timestamp (int): Message timestamp to mark as read/viewed.
-            receipt_type (str, optional): Receipt type.  Can be 'read' or 'viewed'. Defaults to 'read'.
+            receipt_type (str, optional): Receipt type.  Can be 'read', 'viewed'. Defaults to 'read'.
         """
         
         params = {'recipient': recipient,
@@ -723,3 +728,41 @@ class SignalCliRestApi(object):
         data = self._format_params(params)
         
         request = self._requester(method='put', url=url, data=data, success_code=204, error_unknown='while verifying identity', error_couldnt='verify identity')
+        
+    def link_with_qr(self, device_name:str, qrcode_version:int=10):
+        """Generate QR code to link a device
+
+        Args:
+            device_name (str): Device name.
+            qrcode_version (int, optional): QRCode version. Defaults to 10.
+
+        Returns:
+            str: base64 encoded QR code PNG.
+        """
+        url = self._base_url + "/v1/qrcodelink"
+        
+        params = {'device_name': device_name,
+                  'qrcode_version':  qrcode_version}
+        
+        data = self._format_params(params=params)
+        
+        request = self._requester(method='get', url=url, data=data, success_code=200, error_unknown='generating QR code', error_couldnt='generate QR code')
+        return bytes_to_base64(request.content)
+    
+    def list_accounts(self): #TODO Doesn't seem to work. Maybe the pin needs to be sent too, but IDK what it would be looking for
+        """List all registered/linked accounts. 
+
+        Returns:
+            list: Phone numbers of linked/registered accounts.
+        """
+        url = self._base_url + "/v1/accounts"
+        
+        request = self._requester(method='get', url=url, success_code=200, error_unknown='getting linked/registered accounts', error_couldnt='get linked/registered accounts')
+        return request.json()
+    
+    def add_pin(self):
+        url = self._base_url + "/v1/accounts/" + self._number + "/pin" 
+        
+        request = self._requester(method='get', url=url, success_code=201, error_unknown='setting account pin', error_couldnt='set account pin')
+        return request.json()
+        
