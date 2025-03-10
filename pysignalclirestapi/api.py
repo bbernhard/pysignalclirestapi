@@ -495,7 +495,9 @@ class SignalCliRestApi(object):
                   'quote_author': quote_author,
                   'quote_message': quote_message,
                   'quote_mentions': quote_mentions,
-                  'text_mode':text_mode}
+                  'text_mode':text_mode,
+                  'number':self._number # whoops, thats kind of important to have
+                  }
         
         # fall back to old api version to stay downwards compatible.
         about = self.about()
