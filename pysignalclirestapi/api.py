@@ -49,7 +49,7 @@ class SignalCliRestApi(object):
         else:
             self._auth = None
     
-    def _format_params(self, params, endpoint:str=None):
+    def _format_params(self, params, endpoint:str=None): #TODO should this be called from _requester to reduce reduncancy?
         """Format parameters/args/data for API calls.
         
         If endpoint is set to "receive", boolean values will be converted to a string.
@@ -483,7 +483,6 @@ class SignalCliRestApi(object):
         """
         if isinstance(recipients,str): # If sending "recipients" in data, recipients must be sent as a list, even it is a single recipient.
             recipients = [recipients]
-        number = self._number
         
         params = {'message': message,
                   'recipients':recipients,
@@ -751,7 +750,7 @@ class SignalCliRestApi(object):
         request = self._requester(method='get', url=url, data=data, success_code=200, error_unknown='generating QR code', error_couldnt='generate QR code')
         return bytes_to_base64(request.content)
     
-    def list_accounts(self): #TODO Doesn't seem to work. Maybe the pin needs to be sent too, but IDK what it would be looking for
+    def list_accounts(self): 
         """List all registered/linked accounts. 
 
         Returns:
@@ -762,7 +761,7 @@ class SignalCliRestApi(object):
         request = self._requester(method='get', url=url, success_code=200, error_unknown='getting linked/registered accounts', error_couldnt='get linked/registered accounts')
         return request.json()
     
-    def add_pin(self):
+    def add_pin(self): #TODO Doesn't seem to work. Maybe the pin needs to be sent too, but IDK what it would be looking for
         url = self._base_url + "/v1/accounts/" + self._number + "/pin" 
         
         request = self._requester(method='get', url=url, success_code=201, error_unknown='setting account pin', error_couldnt='set account pin')
