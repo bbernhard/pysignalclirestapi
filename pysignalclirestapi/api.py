@@ -42,6 +42,8 @@ class SignalCliRestApi(object):
         self._base_url = base_url
         self._number = number
         self._verify_ssl = verify_ssl
+        self._session = requests.Session()
+        
         if auth:
             assert issubclass(
                 type(auth), SignalCliRestApiAuth), "Expecting a subclass of SignalCliRestApiAuth as auth parameter"
@@ -50,7 +52,7 @@ class SignalCliRestApi(object):
             self._auth = None
 
     def about(self):
-        resp = requests.get(self._base_url + "/v1/about", auth=self._auth, verify=self._verify_ssl)
+        resp = self._session.get(self._base_url + "/v1/about", auth=self._auth, verify=self._verify_ssl)
         if resp.status_code == 200:
             return resp.json()
         return None
@@ -97,7 +99,7 @@ class SignalCliRestApi(object):
                 "members": members,
                 "name": name
             }
-            resp = requests.post(url, json=data, auth=self._auth, verify=self._verify_ssl)
+            resp = self._session.post(url, json=data, auth=self._auth, verify=self._verify_ssl)
             if resp.status_code != 201 and resp.status_code != 200:
                 json_resp = resp.json()
                 if "error" in json_resp:
@@ -114,7 +116,7 @@ class SignalCliRestApi(object):
     def list_groups(self):
         try:
             url = self._base_url + "/v1/groups/" + self._number
-            resp = requests.get(url, auth=self._auth, verify=self._verify_ssl)
+            resp = self._session.get(url, auth=self._auth, verify=self._verify_ssl)
             json_resp = resp.json()
             if resp.status_code != 200:
                 if "error" in json_resp:
@@ -131,7 +133,7 @@ class SignalCliRestApi(object):
     def receive(self):
         try:
             url = self._base_url + "/v1/receive/" + self._number
-            resp = requests.get(url, auth=self._auth, verify=self._verify_ssl)
+            resp = self._session.get(url, auth=self._auth, verify=self._verify_ssl)
             json_resp = resp.json()
             if resp.status_code != 200:
                 if "error" in json_resp:
@@ -162,7 +164,7 @@ class SignalCliRestApi(object):
                     base64_avatar = bytes_to_base64(ofile.read())
                     data["base64_avatar"] = base64_avatar
 
-            resp = requests.put(url, json=data, auth=self._auth, verify=self._verify_ssl)
+            resp = self._session.put(url, json=data, auth=self._auth, verify=self._verify_ssl)
             if resp.status_code != 204:
                 json_resp = resp.json()
                 if "error" in json_resp:
@@ -243,7 +245,7 @@ class SignalCliRestApi(object):
                         base64_attachment = bytes_to_base64(ofile.read())
                         data["base64_attachment"] = base64_attachment
 
-            resp = requests.post(url, json=data, auth=self._auth, verify=self._verify_ssl)
+            resp = self._session.post(url, json=data, auth=self._auth, verify=self._verify_ssl)
             if resp.status_code != 201:
                 json_resp = resp.json()
                 if "error" in json_resp:
@@ -261,7 +263,7 @@ class SignalCliRestApi(object):
 
         try:
             url = self._base_url + "/v1/attachments"
-            resp = requests.get(url, auth=self._auth, verify=self._verify_ssl)
+            resp = self._session.get(url, auth=self._auth, verify=self._verify_ssl)
             if resp.status_code != 200:
                 json_resp = resp.json()
                 if "error" in json_resp:
@@ -280,7 +282,7 @@ class SignalCliRestApi(object):
         try:
             url = self._base_url + "/v1/attachments/" + attachment_id
 
-            resp = requests.get(url, auth=self._auth, verify=self._verify_ssl)
+            resp = self._session.get(url, auth=self._auth, verify=self._verify_ssl)
             if resp.status_code != 200:
                 json_resp = resp.json()
                 if "error" in json_resp:
@@ -299,7 +301,7 @@ class SignalCliRestApi(object):
         try:
             url = self._base_url + "/v1/attachments/" + attachment_id
 
-            resp = requests.delete(url, auth=self._auth, verify=self._verify_ssl)
+            resp = self._session.delete(url, auth=self._auth, verify=self._verify_ssl)
             if resp.status_code != 204:
                 json_resp = resp.json()
                 if "error" in json_resp:
@@ -317,7 +319,7 @@ class SignalCliRestApi(object):
             url = self._base_url + "/v1/search"
             params = {"number": self._number, "numbers": numbers}
 
-            resp = requests.get(url, params=params, auth=self._auth, verify=self._verify_ssl)
+            resp = self._session.get(url, params=params, auth=self._auth, verify=self._verify_ssl)
             if resp.status_code != 200:
                 json_resp = resp.json()
                 if "error" in json_resp:
