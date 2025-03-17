@@ -39,9 +39,11 @@ class SignalCliRestApi(object):
     def __init__(self, base_url, number, auth=None, verify_ssl=True):
         """Initialize the class."""
         super(SignalCliRestApi, self).__init__()
+        self._session = requests.Session()
         self._base_url = base_url
         self._number = number
         self._verify_ssl = verify_ssl
+        
         if auth:
             assert issubclass(
                 type(auth), SignalCliRestApiAuth), "Expecting a subclass of SignalCliRestApiAuth as auth parameter"
@@ -136,7 +138,7 @@ class SignalCliRestApi(object):
             else:
                 params=data
 
-            resp = requests.request(method=method, url=url, params=params, json=json, auth=self._auth, verify=self._verify_ssl)
+            resp = self._session.request(method=method, url=url, params=params, json=json, auth=self._auth, verify=self._verify_ssl)
             if resp.status_code not in success_code:
                 json_resp = resp.json()
                 if "error" in json_resp:
@@ -761,15 +763,15 @@ class SignalCliRestApi(object):
         request = self._requester(method='get', url=url, success_code=200, error_unknown='getting linked/registered accounts', error_couldnt='get linked/registered accounts')
         return request.json()
     
-    def add_pin(self, pin:str):
-        """Add pin to your Signal account
+    def add_pin(self, pin:str): #TODO test if you have a device where this is the main account
+        """Add pin to your Signal account.  Does not work if signal-cli is not set as the main device.
 
         Args:
             pin (str): Pin
 
         Returns:
             _type_: _description_
-        """
+        """ #TODO add return type
         url = self._base_url + "/v1/accounts/" + self._number + "/pin"
         params = {'pin': pin}
         
@@ -779,12 +781,12 @@ class SignalCliRestApi(object):
         return request.json()
         
     def remove_pin(self):
-        """Remove pin from your Signal account
+        """Remove pin from your Signal account.  Does not work if signal-cli is not set as the main device.
 
         Returns:
             _type_: _description_
-        """
+        """#TODO add return type
         url = self._base_url + "/v1/accounts/" + self._number + "/pin" 
         
-        request = self._requester(method='delete', url=url, success_code=201, error_unknown='removing account pin', error_couldnt='remove account pin')
+        request = self._requester(method='delete', url=url, success_code=204, error_unknown='removing account pin', error_couldnt='remove account pin')
         return request.json()
