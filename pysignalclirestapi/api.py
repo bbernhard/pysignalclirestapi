@@ -761,9 +761,30 @@ class SignalCliRestApi(object):
         request = self._requester(method='get', url=url, success_code=200, error_unknown='getting linked/registered accounts', error_couldnt='get linked/registered accounts')
         return request.json()
     
-    def add_pin(self): #TODO Doesn't seem to work. Maybe the pin needs to be sent too, but IDK what it would be looking for
-        url = self._base_url + "/v1/accounts/" + self._number + "/pin" 
+    def add_pin(self, pin:str):
+        """Add pin to your Signal account
+
+        Args:
+            pin (str): Pin
+
+        Returns:
+            _type_: _description_
+        """
+        url = self._base_url + "/v1/accounts/" + self._number + "/pin"
+        params = {'pin': pin}
         
-        request = self._requester(method='get', url=url, success_code=201, error_unknown='setting account pin', error_couldnt='set account pin')
+        data = self._format_params(params=params)
+        
+        request = self._requester(method='post', url=url, data=data, success_code=201, error_unknown='setting account pin', error_couldnt='set account pin')
         return request.json()
         
+    def remove_pin(self):
+        """Remove pin from your Signal account
+
+        Returns:
+            _type_: _description_
+        """
+        url = self._base_url + "/v1/accounts/" + self._number + "/pin" 
+        
+        request = self._requester(method='delete', url=url, success_code=201, error_unknown='removing account pin', error_couldnt='remove account pin')
+        return request.json()
