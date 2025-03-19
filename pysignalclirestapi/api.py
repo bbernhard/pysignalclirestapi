@@ -72,7 +72,7 @@ class SignalCliRestApi(object):
         for item, value in params.items(): # Check params, add anything that isn't blank to the query
             if value !=None:
                 # Allow conditional formatting, depending on the endpoint
-                if endpoint in ['receive']:
+                if endpoint in ['receive']: # This is still needed as of 2025/03/19, but only for receive endpoint?
                     value = 'true' if value is True else 'false' if value is False else value # Convert bool to string
                 
                 elif endpoint in ['send_message']:
@@ -91,6 +91,7 @@ class SignalCliRestApi(object):
                                     attachments.append(base64_attachment)
                             value = attachments
                             item = 'base64_attachments'
+                    
                     else:  # fall back to api version 1 to stay downwards compatible
                         if item == 'filenames' and len(value) == 1:
                             with open(value[0], "rb") as ofile:
@@ -98,6 +99,9 @@ class SignalCliRestApi(object):
                                 attachment = base64_attachment
                             value = attachment
                             item = 'base64_attachments'
+                            
+                elif item in ['members', 'admins']: # Convert single user sent as string to a list to prevent error
+                    value = [value] if isinstance(value, str) else value
                 
                 elif endpoint in ['update_group', 'update_profile']: # Format attachments
                     if item == 'filename':
@@ -123,7 +127,9 @@ class SignalCliRestApi(object):
             error_unknown (str, optional): Custom error for "unknown error".
             error_couldnt (str, optional): Custom error for "Couldn't".
         """
-        
+        #TODO try to move formatter here
+        #if data: 
+            #self._format_params(params)
         params = None
         json = None
         if isinstance(success_code, list):
@@ -182,13 +188,13 @@ class SignalCliRestApi(object):
             raise_from(SignalCliRestApiError(
                 "Couldn't determine REST API version"), exc)
 
-    def has_capability(self, endpoint, capability, about=None):
+    def has_capability(self, endpoint, capability, about=None): #TODO should this be _has_capability?
         if about is None:
             about = self.about()
 
         return capability in about.get("capabilities", {}).get(endpoint, [])
 
-    def mode(self):
+    def mode(self): 
         data = self.about()
 
         mode = "unknown"
@@ -336,7 +342,6 @@ class SignalCliRestApi(object):
             groupid (str): _Signal group ID.
             members (str, list): Member(s) to add.  Will accept a single user as a string, otherwise use a list.
         """
-        members = [members] if isinstance(members,str) else members # Listify! #TODO could this be moved to the data formatter
         
         params = {'groupid': groupid,
                   'members': members}
@@ -345,6 +350,7 @@ class SignalCliRestApi(object):
         data = self._format_params(params)
         
         request = self._requester(method='post', url=url, data=data, success_code=204, error_unknown='while adding members to Signal Messenger group', error_couldnt='add members to Signal Messenger group')
+        pass
         #TODO add some sort of response?
     
     def remove_group_members(self, groupid:str, members:list):
@@ -354,8 +360,7 @@ class SignalCliRestApi(object):
             groupid (str): _Signal group ID.
             members (str, list): Member(s) to remove.  Will accept a single user as a string, otherwise use a list.
         """
-        members = [members] if isinstance(members, str) else members # Listify! #TODO could this be moved to the data formatter
-        
+
         params = {'groupid': groupid,
                   'members': members}
         
@@ -371,7 +376,6 @@ class SignalCliRestApi(object):
             groupid (str): _Signal group ID.
             admins (str, list): Users(s) to promote.  Will accept a single user as a string, otherwise use a list.
         """
-        admins = [admins] if isinstance(admins, str) else admins # Listify! #TODO could this be moved to the data formatter
         
         params = {'groupid': groupid,
                   'admins': admins}
@@ -388,17 +392,16 @@ class SignalCliRestApi(object):
             groupid (str): _Signal group ID.
             admins (str, list): Users(s) to demote.  Will accept a single user as a string, otherwise use a list.
         """
-        admins = [admins] if isinstance(admins, str) else admins # Listify! #TODO could this be moved to the data formatter
         
-        params = {'groupid': groupid,
+        unformatted_data = {'groupid': groupid,
                   'admins': admins}
         
         url = self._base_url + "/v1/groups/" + self._number + '/' + str(groupid) + '/admins'
-        data = self._format_params(params)
+        data = self._format_params(unformatted_data)
         
         request = self._requester(method='delete', url=url, data=data, success_code=204, error_unknown='while removing admins from Signal Messenger group', error_couldnt='remove admins from Signal Messenger group')
 
-    def receive(self, ignore_attachments:bool=False, ignore_stories:bool=False, send_read_receipts:bool=False, max_messages:int=None, timeout:int=1):
+    def receive(self, ignore_attachments:bool=False, ignore_stories:bool=False, send_read_receipts:bool=False, max_messages:int=None, timeout:int=1): #TODO Allow this to detect and work with websocket 
         """Receive (get) Signal Messages from the Signal Network. 
         
         If you are running the docker container in normal/native mode, this is a GET endpoint. In json-rpc mode this is a websocket endpoint.
