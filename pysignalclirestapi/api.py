@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from requests.models import HTTPBasicAuth
 from six import raise_from
 import requests
-from .helpers import bytes_to_base64
+from .helpers import bytes_to_base64, read_file
 
 
 class SignalCliRestApiError(Exception):
@@ -86,17 +86,16 @@ class SignalCliRestApi(object):
                         elif item == 'filenames':
                             attachments = []
                             for filename in value:
-                                with open(filename, "rb") as ofile:
-                                    base64_attachment = bytes_to_base64(ofile.read())
-                                    attachments.append(base64_attachment)
+                                base64_attachment = bytes_to_base64(read_file(filename))
+                                attachments.append(base64_attachment)
                             value = attachments
                             item = 'base64_attachments'
                     
                     else:  # fall back to api version 1 to stay downwards compatible
                         if item == 'filenames' and len(value) == 1:
-                            with open(value[0], "rb") as ofile:
-                                base64_attachment = bytes_to_base64(ofile.read())
-                                attachment = base64_attachment
+                            filename = value[0]
+                            base64_attachment = bytes_to_base64(read_file(filename))
+                            attachment = base64_attachment
                             value = attachment
                             item = 'base64_attachments'
                             
@@ -105,8 +104,8 @@ class SignalCliRestApi(object):
                 
                 elif endpoint in ['update_group', 'update_profile']: # Format attachments
                     if item == 'filename':
-                        with open(value, "rb") as ofile:
-                            value = bytes_to_base64(ofile.read())
+                        filename = value
+                        value = bytes_to_base64(read_file(filename))
                         item = 'base64_avatar'
                     elif item == 'attachment_as_bytes':
                         value = bytes_to_base64(value)
