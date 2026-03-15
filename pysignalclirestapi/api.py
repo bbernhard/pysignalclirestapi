@@ -793,3 +793,31 @@ class SignalCliRestApi(object):
         
         request = self._requester(method='delete', url=url, success_code=204, error_unknown='removing account pin', error_couldnt='remove account pin')
         return request.json()
+
+    def create_poll(self, question:str, answers:list, recipient:str, allow_multiple_selections:bool=False):
+        """Create a poll.
+
+        Args:
+            question (str): Poll question.
+            answers (list): Poll choices.
+            recipient (str): Recipient.
+            allow_multiple_selections (bool, optional): Allow voters to choose >1 answer.
+
+        Returns:
+            dict: Poll creation timestamp.
+        """
+
+        params = {'question': question,
+                  'answers': answers,
+                  'recipient': recipient,
+                  'allow_multiple_selections': allow_multiple_selections
+                  }
+
+        url = self._base_url + "/v1/polls/" + self._number
+        data = self._format_params(params=params)
+
+        request = self._requester(method='post', url=url, data=data, success_code=201,
+                                  error_unknown='while receiving Signal Messenger data',
+                                  error_couldnt='receive Signal Messenger data')
+        return request.json()
+
