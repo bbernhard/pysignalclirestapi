@@ -3,6 +3,9 @@
 import sys
 import base64
 import json
+import asyncio
+import ssl
+from urllib.parse import urlencode
 from abc import ABC, abstractmethod
 from requests.models import HTTPBasicAuth
 from six import raise_from
@@ -50,6 +53,8 @@ class SignalCliRestApi(object):
             self._auth = auth.get_auth()
         else:
             self._auth = None
+
+        self._mode = self.mode() # init mode for receive with websockets
     
     def _format_params(self, params, endpoint:str=None): #TODO should this be called from _requester to reduce reduncancy?
         """Format parameters/args/data for API calls.
@@ -401,31 +406,164 @@ class SignalCliRestApi(object):
         
         request = self._requester(method='delete', url=url, data=data, success_code=204, error_unknown='while removing admins from Signal Messenger group', error_couldnt='remove admins from Signal Messenger group')
 
-    def receive(self, ignore_attachments:bool=False, ignore_stories:bool=False, send_read_receipts:bool=False, max_messages:int=None, timeout:int=1): #TODO Allow this to detect and work with websocket 
-        """Receive (get) Signal Messages from the Signal Network. 
-        
-        If you are running the docker container in normal/native mode, this is a GET endpoint. In json-rpc mode this is a websocket endpoint.
-        
-        Args:
-            ignore_attachments (bool, optional): Ignore attachments. Defaults to False.
-            ignore_stories (bool, optional): Ignore stories. Defaults to False.
-            send_read_receipts (bool, optional): Send read receipts. Defaults to False.
-            max_messages (int, optional): Maximum messages to get per request.  Messages will be returned oldest to newest. Defaults to None (unlimited).
-            timeout (int, optional): Receive timeout in seconds. Defaults to 1.
+    def _ws_url_for_receive(self, data: dict) -> str:
+        """
+        Convert base_url (http/https) + receive endpoint to ws/wss URL with query params.
+        """
+        base = self._base_url.rstrip("/")
+        if base.startswith("https://"):
+            ws_base = "wss://" + base.removeprefix("https://")
+        elif base.startswith("http://"):
+            ws_base = "ws://" + base.removeprefix("http://")
+        else:
+            # If user provided host:port without scheme, default to ws://
+            ws_base = "ws://" + base
+
+        query = urlencode({k: v for k, v in (data or {}).items() if v is not None})
+        path = f"/v1/receive/{self._number}"
+        return f"{ws_base}{path}" + (f"?{query}" if query else "")
+
+    def _ws_headers(self) -> dict:
+        """
+        WebSocket handshake headers. Supports HTTP Basic auth if configured via SignalCliRestApiHTTPBasicAuth.
+        """
+        headers = {}
+        if isinstance(self._auth, HTTPBasicAuth):
+            user = getattr(self._auth, "username", None)
+            pwd = getattr(self._auth, "password", None)
+            if user is not None and pwd is not None:
+                token = base64.b64encode(f"{user}:{pwd}".encode("utf-8")).decode("ascii")
+                headers["Authorization"] = f"Basic {token}"
+        return headers
+
+    async def receive_ws(
+            self,
+            ignore_attachments: bool = False,
+            ignore_stories: bool = False,
+            send_read_receipts: bool = False,
+            max_messages: int | None = None,
+            timeout: int = 1,
+    ) -> list:
+        """
+        Receive messages via websocket (json-rpc mode).
+
+        Collects messages until:
+          - max_messages is reached, OR
+          - no message arrives for `timeout` seconds (silence timeout)
+
+        Returns:
+            list: list of received message envelopes (dicts)
+        """
+        try:
+            import websockets  # dependency already in pyproject
+        except Exception as exc:
+            raise_from(
+                SignalCliRestApiError("websockets package is required for json-rpc receive"),
+                exc,
+            )
+
+        params = {
+            "ignore_attachments": ignore_attachments,
+            "ignore_stories": ignore_stories,
+            "send_read_receipts": send_read_receipts,
+            "max_messages": max_messages,
+            "timeout": timeout,
+        }
+        data = self._format_params(params=params, endpoint="receive")
+        ws_url = self._ws_url_for_receive(data)
+
+        ssl_ctx = None
+        if ws_url.startswith("wss://"):
+            ssl_ctx = ssl.create_default_context()
+            if not self._verify_ssl:
+                ssl_ctx.check_hostname = False
+                ssl_ctx.verify_mode = ssl.CERT_NONE
+
+        received: list = []
+        try:
+            async with websockets.connect(
+                    ws_url,
+                    additional_headers=self._ws_headers() or None,
+                    ssl=ssl_ctx,
+            ) as websocket:
+                while True:
+                    if max_messages is not None and len(received) >= int(max_messages):
+                        break
+
+                    try:
+                        raw = await asyncio.wait_for(websocket.recv(), timeout=timeout)
+                    except asyncio.TimeoutError:
+                        # "silence" timeout => return what we have so far
+                        break
+
+                    try:
+                        received.append(json.loads(raw))
+                    except json.JSONDecodeError:
+                        # Keep behavior conservative: ignore malformed frames
+                        continue
+
+        except Exception as exc:
+            raise_from(
+                SignalCliRestApiError("Couldn't receive Signal Messenger data via websocket"),
+                exc,
+            )
+
+        return received
+
+    def receive(
+        self,
+        ignore_attachments: bool = False,
+        ignore_stories: bool = False,
+        send_read_receipts: bool = False,
+        max_messages: int = None,
+        timeout: int = 1,
+    ):
+        """Receive (get) Signal Messages from the Signal Network.
+
+        If you are running the docker container in normal/native mode, this is a GET endpoint.
+        In json-rpc mode this is a websocket endpoint.
 
         Returns:
             list: List of messages
         """
-        params = {'ignore_attachments': ignore_attachments,
-                  'ignore_stories': ignore_stories,
-                  'send_read_receipts': send_read_receipts,
-                  'max_messages': max_messages,
-                  'timeout': timeout}
-        
+        if self._mode == "json-rpc":
+            # If we're already inside an event loop, we can't asyncio.run().
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                return asyncio.run(
+                    self.receive_ws(
+                        ignore_attachments=ignore_attachments,
+                        ignore_stories=ignore_stories,
+                        send_read_receipts=send_read_receipts,
+                        max_messages=max_messages,
+                        timeout=timeout,
+                    )
+                )
+            raise SignalCliRestApiError(
+                "receive() cannot be called from inside a running event loop in json-rpc mode. "
+                "Use: await receive_ws(...) instead."
+            )
+
+        params = {
+            "ignore_attachments": ignore_attachments,
+            "ignore_stories": ignore_stories,
+            "send_read_receipts": send_read_receipts,
+            "max_messages": max_messages,
+            "timeout": timeout,
+        }
+
         url = self._base_url + "/v1/receive/" + self._number
-        data = self._format_params(params=params, endpoint='receive')
-        
-        request = self._requester(method='get', url=url, data=data, success_code=200, error_unknown='while receiving Signal Messenger data', error_couldnt='receive Signal Messenger data')
+        data = self._format_params(params=params, endpoint="receive")
+
+        request = self._requester(
+            method="get",
+            url=url,
+            data=data,
+            success_code=200,
+            error_unknown="while receiving Signal Messenger data",
+            error_couldnt="receive Signal Messenger data",
+        )
         return request.json()
 
     def update_profile(self, name:str, filename:str=None, attachment_as_bytes:str=None):
