@@ -843,7 +843,7 @@ class SignalCliRestApi(object):
         request = self._requester(method='post', url=url, data=data, success_code=204, error_unknown='while sending receipt', error_couldnt='send receipt')
         #return request.json() #TODO confirm if this returns anything
         
-    def list_indentities(self):
+    def list_identities(self):
         """List all identities for your Signal account.
         
         Order of identities may change between calls
@@ -857,7 +857,7 @@ class SignalCliRestApi(object):
         request = self._requester(method='get', url=url, success_code=200, error_unknown='getting identities', error_couldnt='get identities')
         return request.json()
     
-    def verify_indentity(self, number_to_trust:str, verified_safety_number:str, trust_all_known_keys:bool=False):
+    def verify_identity(self, number_to_trust:str, verified_safety_number:str, trust_all_known_keys:bool=False):
         """Verify/Trust an identity.
 
         Args:
