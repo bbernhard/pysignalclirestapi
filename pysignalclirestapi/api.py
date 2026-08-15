@@ -786,15 +786,21 @@ class SignalCliRestApi(object):
                 raise exc
             raise_from(SignalCliRestApiError("Couldn't search for phone numbers: "), exc)
             
-    def get_contacts(self):
+    def get_contacts(self, all_recipients=False):
         """Get all Signal contacts for your account.
+
+        Args:
+            all_recipients (bool, optional): If set to True, all known contacts are returned. 
 
         Returns:
             list: List of contacts.
         """
+        params = { 'all_recipients': all_recipients }
+
         url = self._base_url + "/v1/contacts/" +self._number
-        
-        request = self._requester(method='get', url=url, success_code=200, error_unknown='while updating profile', error_couldnt='update profile')
+        data = self._format_params(params, endpoint="receive")
+
+        request = self._requester(method='get', url=url, data=data, success_code=200, error_unknown='while updating profile', error_couldnt='update profile')
         return request.json()
     
     def update_contact(self, contact:str, name:str=None, expiration_in_seconds:int=None):
