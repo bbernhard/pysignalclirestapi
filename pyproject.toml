@@ -1,0 +1,29 @@
+[project]
+name = "pysignalclirestapi"
+version = "0.3.25"
+description = "Small python library for the Signal Cli REST API"
+readme = "README.md"
+requires-python = ">=3.10"
+
+authors = [
+  { name = "Bernhard B.", email = "bernhard@liftingcoder.com" },
+]
+
+dependencies = [
+  "requests",
+  "six",
+]
+
+license = "MIT"
+license-files = ["LICENSE.txt"]
+
+[project.urls]
+Homepage = "https://github.com/bbernhard/pysignalclirestapi"
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "pysignalclirestapi"
+module-root = "."
