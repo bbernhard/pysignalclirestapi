@@ -14,11 +14,8 @@ dependencies = [
   "six",
 ]
 
-classifiers = [
-  "License :: OSI Approved :: MIT License",
-  "Operating System :: OS Independent",
-  "Programming Language :: Python :: 3",
-]
+license = "MIT"
+license-files = ["LICENSE.txt"]
 
 [project.urls]
 Homepage = "https://github.com/bbernhard/pysignalclirestapi"
