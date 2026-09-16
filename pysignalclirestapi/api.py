@@ -1178,18 +1178,17 @@ class SignalCliRestApi(object):
     
     # # # POLLS # # #
     # DELETE /v1/polls/{number}
-    def end_poll(self, recipient:str|int, poll_timestamp:int,):
+    def end_poll(self, recipient:str|int, poll_timestamp:int):
         url = self._base_url + "/v1/polls/" + self._number
         
         params = {
-            "poll_timestamp": poll_timestamp,
+            # Per https://github.com/bbernhard/signal-cli-rest-api/issues/843, the poll timestamp needs to be sent as a string
+            "poll_timestamp": str(poll_timestamp),
             "recipient": recipient
             }
                 
         data = self._format_params(params=params)
-        request = self._requester(method='delete', url=url, data=data, success_code=204, error_unknown='removing poll', error_couldnt='remove poll')
-        return request.json()
-    
+        request = self._requester(method='delete', url=url, data=data, success_code=204, error_unknown='removing poll', error_couldnt='remove poll')    
     # POST /v1/polls/{number}
     def create_poll(self, recipient:str|int, question:str, answers:list[str], allow_multiple_selections:bool=False):
         url = self._base_url + "/v1/polls/" + self._number
