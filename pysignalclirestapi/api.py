@@ -1020,14 +1020,14 @@ class SignalCliRestApi(object):
             trust_all_known_keys (bool, optional): If set to True, all known keys of this user are trusted.  Only recommended for testing!  Defaults to False.
         """
         print("DEPRECATION WARNING: 'verify_indentity' will be removed in future release as it was a mis-spelling. Use 'verify_identity' going forward!")
-        self.verify_identity(number_to_trust=number_to_trust, verified_safety_number=verified_safety_number, trust_all_known_keys=trust_all_known_keys)
+        self.verify_identity(identity_to_trust=number_to_trust, verified_safety_number=verified_safety_number, trust_all_known_keys=trust_all_known_keys)
     
     # PUT /v1/identities/{number}/trust/{numberToTrust}
-    def verify_identity(self, number_to_trust:str, verified_safety_number:str, trust_all_known_keys:bool=False):
+    def verify_identity(self, identity_to_trust:str, verified_safety_number:str, trust_all_known_keys:bool=False):
         """Verify/Trust an identity.
 
         Args:
-            number_to_trust (str): Number to mark as verified/trusted.
+            identity_to_trust (str): Number or UUID to mark as verified/trusted.
             verified_safety_number (str): Safety number of identity.  Can be gotten from list_identities()
             trust_all_known_keys (bool, optional): If set to True, all known keys of this user are trusted.  Only recommended for testing!  Defaults to False.
         """
@@ -1036,7 +1036,7 @@ class SignalCliRestApi(object):
             'verified_safety_number': verified_safety_number,
             'trust_all_known_keys': trust_all_known_keys
             }
-        url = self._base_url + "/v1/identities/" + self._number +'/trust/' + number_to_trust
+        url = self._base_url + "/v1/identities/" + self._number +'/trust/' + identity_to_trust
         data = self._format_params(params)
         
         request = self._requester(method='put', url=url, data=data, success_code=204, error_unknown='while verifying identity', error_couldnt='verify identity')
