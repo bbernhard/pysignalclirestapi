@@ -592,7 +592,7 @@ class SignalCliRestApi(object):
     def send_message(self, message:str, recipients:list, notify_self:bool=False, filenames=None, attachments_as_bytes:list=None,
                      mentions:list=None, quote_timestamp:int=None, quote_author:str=None, quote_message:str=None,
                      quote_mentions:list=None, text_mode="normal"):
-        """Send a message to one (or more) recipients.
+        r"""Send a message to one (or more) recipients.
         
         Supports attachments, styled text, mentioning, and quoting if using V2.
         
